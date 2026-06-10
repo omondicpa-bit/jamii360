@@ -2253,10 +2253,13 @@ async function saveContribType() {
 // ── SUPER ADMIN ──
 async function loadSuperAdmin() {
   document.getElementById('sa-org-list').innerHTML = '<div class="loading"><div class="spinner"></div>Loading organisations…</div>';
+  // Fetch with explicit headers to ensure superadmin bypass
   const [orgsRes, membersRes] = await Promise.all([
     sb.from('organisations').select('*').order('created_at',{ascending:false}),
-    sb.from('members').select('id,org_id')
+    sb.from('members').select('id,org_id,full_name,status')
   ]);
+  console.log('SA orgs:', orgsRes.data?.length, orgsRes.error);
+  console.log('SA members:', membersRes.data?.length, membersRes.error);
   const orgs = orgsRes.data || [];
   const members = membersRes.data || [];
   const planRevenue = { starter:0, basic:3000, standard:6000, pro:12000 };
@@ -2341,6 +2344,8 @@ async function loadSAMembers() {
     sb.from('members').select('*').order('full_name'),
     sb.from('organisations').select('id,name')
   ]);
+  console.log('SA all members:', membersRes.data?.length, membersRes.error);
+  console.log('SA all orgs:', orgsRes.data?.length, orgsRes.error);
   allSAMembers = membersRes.data || [];
   const orgMap = {};
   (orgsRes.data||[]).forEach(o => orgMap[o.id] = o.name);
