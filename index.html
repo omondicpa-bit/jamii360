@@ -1495,11 +1495,16 @@ async function signOut() {
 // ── APP ──
 function showApp() {
   document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app-screen').classList.add('visible');
+  document.getElementById('pending-screen').style.display = 'none';
+  const appScreen = document.getElementById('app-screen');
+  appScreen.classList.add('visible');
   buildNav();
   updateSidebar();
-  loadDashboard();
-  prefetchData();
+  // Small delay to ensure DOM is visible before loading pages
+  setTimeout(() => {
+    loadDashboard();
+    prefetchData();
+  }, 50);
   const today = new Date().toISOString().split('T')[0];
   document.querySelectorAll('input[type="date"]').forEach(el => { if(!el.value) el.value = today; });
 }
