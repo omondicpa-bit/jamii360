@@ -300,8 +300,111 @@ tr:hover td{background:var(--maroon-pale)}
           <input class="form-input" type="password" id="login-password" placeholder="••••••••"/>
         </div>
         <button class="btn btn-primary" onclick="signIn()">Sign In to GroupYetu360</button>
-        <div class="auth-footer">
-          New organisation? <a onclick="switchAuthTab('register')">Register here</a>
+        <div class="auth-footer" style="display:flex;justify-content:space-between;margin-top:1rem">
+          <a onclick="showForgotPassword()">Forgot password?</a>
+          <a onclick="switchAuthTab('register')">Register organisation</a>
+        </div>
+      </div>
+
+      <!-- FORGOT PASSWORD -->
+      <div class="auth-panel" id="auth-forgot">
+        <div class="auth-error" id="forgot-error"></div>
+        <div class="auth-success" id="forgot-success"></div>
+        <div style="font-size:.82rem;color:var(--ink-soft);margin-bottom:1.25rem;line-height:1.6">
+          Enter your email address and we will send you a link to reset your password.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input class="form-input" type="email" id="forgot-email" placeholder="your@email.com"/>
+        </div>
+        <button class="btn btn-primary" onclick="sendPasswordReset()">Send Reset Link</button>
+        <div class="auth-footer" style="margin-top:1rem">
+          <a onclick="showPage('login');switchAuthTab('login')">← Back to Sign In</a>
+        </div>
+      </div>
+
+      <!-- FORGOT PASSWORD -->
+      <div class="auth-panel" id="auth-forgot">
+        <div class="auth-error" id="forgot-error"></div>
+        <div class="auth-success" id="forgot-success"></div>
+        <div style="font-size:.82rem;color:var(--ink-soft);margin-bottom:1.25rem;line-height:1.6">
+          Enter your email address and we will send you a link to reset your password.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input class="form-input" type="email" id="forgot-email" placeholder="your@email.com"/>
+        </div>
+        <button class="btn btn-primary" onclick="sendPasswordReset()">Send Reset Link</button>
+        <div class="auth-footer" style="margin-top:1rem">
+          <a onclick="showPage('login');switchAuthTab('login')">← Back to Sign In</a>
+        </div>
+      </div>
+
+      <!-- FORGOT PASSWORD -->
+      <div class="auth-panel" id="auth-forgot">
+        <div class="auth-error" id="forgot-error"></div>
+        <div class="auth-success" id="forgot-success"></div>
+        <div style="font-size:.82rem;color:var(--ink-soft);margin-bottom:1.25rem;line-height:1.6">
+          Enter your email address and we will send you a link to reset your password.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input class="form-input" type="email" id="forgot-email" placeholder="your@email.com"/>
+        </div>
+        <button class="btn btn-primary" onclick="sendPasswordReset()">Send Reset Link</button>
+        <div class="auth-footer" style="margin-top:1rem">
+          <a onclick="showPage('login');switchAuthTab('login')">← Back to Sign In</a>
+        </div>
+      </div>
+
+      <!-- FORGOT PASSWORD -->
+      <div class="auth-panel" id="auth-forgot">
+        <div class="auth-error" id="forgot-error"></div>
+        <div class="auth-success" id="forgot-success"></div>
+        <div style="font-size:.82rem;color:var(--ink-soft);margin-bottom:1.25rem;line-height:1.6">
+          Enter your email address and we will send you a link to reset your password.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input class="form-input" type="email" id="forgot-email" placeholder="your@email.com"/>
+        </div>
+        <button class="btn btn-primary" onclick="sendPasswordReset()">Send Reset Link</button>
+        <div class="auth-footer" style="margin-top:1rem">
+          <a onclick="showPage('login');switchAuthTab('login')">← Back to Sign In</a>
+        </div>
+      </div>
+
+      <!-- FORGOT PASSWORD -->
+      <div class="auth-panel" id="auth-forgot">
+        <div class="auth-error" id="forgot-error"></div>
+        <div class="auth-success" id="forgot-success"></div>
+        <div style="font-size:.82rem;color:var(--ink-soft);margin-bottom:1.25rem;line-height:1.6">
+          Enter your email address and we will send you a link to reset your password.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input class="form-input" type="email" id="forgot-email" placeholder="your@email.com"/>
+        </div>
+        <button class="btn btn-primary" onclick="sendPasswordReset()">Send Reset Link</button>
+        <div class="auth-footer" style="margin-top:1rem">
+          <a onclick="showPage('login');switchAuthTab('login')">← Back to Sign In</a>
+        </div>
+      </div>
+
+      <!-- FORGOT PASSWORD -->
+      <div class="auth-panel" id="auth-forgot">
+        <div class="auth-error" id="forgot-error"></div>
+        <div class="auth-success" id="forgot-success"></div>
+        <div style="font-size:.82rem;color:var(--ink-soft);margin-bottom:1.25rem;line-height:1.6">
+          Enter your email address and we will send you a link to reset your password.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input class="form-input" type="email" id="forgot-email" placeholder="your@email.com"/>
+        </div>
+        <button class="btn btn-primary" onclick="sendPasswordReset()">Send Reset Link</button>
+        <div class="auth-footer" style="margin-top:1rem">
+          <a onclick="showPage('login');switchAuthTab('login')">← Back to Sign In</a>
         </div>
       </div>
 
@@ -1405,6 +1508,26 @@ async function joinOrg() {
   document.getElementById('join-org-selected').style.display = 'none';
 }
 
+function showForgotPassword() {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.auth-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('auth-forgot').classList.add('active');
+}
+
+async function sendPasswordReset() {
+  const email = document.getElementById('forgot-email').value.trim();
+  const errEl = document.getElementById('forgot-error');
+  const sucEl = document.getElementById('forgot-success');
+  errEl.classList.remove('show'); sucEl.classList.remove('show');
+  if (!email) { errEl.textContent='Please enter your email'; errEl.classList.add('show'); return; }
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+  if (error) { errEl.textContent = error.message; errEl.classList.add('show'); return; }
+  sucEl.textContent = 'Reset link sent! Check your email inbox.';
+  sucEl.classList.add('show');
+}
+
 async function signIn() {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
@@ -1525,12 +1648,15 @@ function buildNav() {
     <a class="nav-item" onclick="showPage('projects')" href="#"><span class="nav-icon">⚑</span> Projects</a>
     <a class="nav-item" onclick="showPage('messages')" href="#"><span class="nav-icon">✉</span> Messages</a>
     <div class="nav-label" style="margin-top:.5rem">Admin</div>
+    <a class="nav-item" onclick="showPage('approvals')" href="#"><span class="nav-icon">✓</span> Approvals <span class="nav-badge" id="approvals-badge" style="display:none">0</span></a>
     <a class="nav-item" onclick="showPage('settings')" href="#"><span class="nav-icon">⚙</span> Settings</a>`;
   } else {
     nav += `<div class="nav-label">Super Admin</div>
     <a class="nav-item active" onclick="showPage('superadmin')" href="#"><span class="nav-icon">⊞</span> Platform Overview</a>
     <a class="nav-item" onclick="showPage('sa_members')" href="#"><span class="nav-icon">◉</span> All Members</a>
     <a class="nav-item" onclick="showPage('sa_finance')" href="#"><span class="nav-icon">₭</span> Revenue</a>`;
+    // Force superadmin page visible after DOM settles
+    setTimeout(() => showPage('superadmin'), 100);
   }
   document.getElementById('sidebar-nav').innerHTML = nav;
   const topbar = document.getElementById('topbar-actions');
