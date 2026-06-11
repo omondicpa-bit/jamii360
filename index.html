@@ -812,10 +812,10 @@ tr:hover td{background:var(--maroon-pale)}
               <div class="form-group"><label class="form-label">Bank Balance (Ksh)</label><input class="form-input" type="number" id="settings-bank-balance" placeholder="Current bank balance"/></div>
               <div class="form-group"><label class="form-label">Balance Date</label><input class="form-input" type="date" id="settings-bank-date"/></div>
             </div>
-            <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:.75rem 0 .5rem">SMS Integration (Africa's Talking)</div>
+            <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:.75rem 0 .5rem">SMS Integration (Africa\'s Talking)</div>
             <div class="form-row">
               <div class="form-group"><label class="form-label">AT Username</label><input class="form-input" id="settings-at-username" placeholder="sandbox or your username"/></div>
-              <div class="form-group"><label class="form-label">AT API Key</label><input class="form-input" type="password" id="settings-at-key" placeholder="Your Africa's Talking API key"/></div>
+              <div class="form-group"><label class="form-label">AT API Key</label><input class="form-input" type="password" id="settings-at-key" placeholder="Your Africa\'s Talking API key"/></div>
             </div>
             <div class="form-row single">
               <div class="form-group"><label class="form-label">Sender ID (optional)</label><input class="form-input" id="settings-at-sender" placeholder="e.g. GROUPYETU (must be registered with AT)"/></div>
@@ -2355,7 +2355,7 @@ async function loadMessages() {
       </div>
       ${isSandbox ? '<div class="alert alert-warn" style="margin-top:.75rem;font-size:.72rem">To go live: update username to your AT account name in Settings</div>' : ''}` :
       `<div style="font-size:.82rem;color:var(--ink-faint);margin-bottom:.75rem">Not connected. Messages are logged but not sent.</div>
-      <button class="btn btn-primary btn-sm" onclick="showPage('settings')">Connect Africa's Talking →</button>`;
+      <button class="btn btn-primary btn-sm" onclick="showPage('settings')">Connect Africa\'s Talking →</button>`;
   }
   const { data } = await sb.from('messages_log').select('*').eq('org_id', currentOrg?.id||'').order('sent_at',{ascending:false}).limit(10);
   const logs = data || [];
@@ -2413,7 +2413,7 @@ async function sendSms() {
       recipient_count: recipients.length,
       sent_by: currentUser.id
     });
-    toast('Message logged. Add Africa's Talking credentials in Settings to send live SMS.');
+    toast('Message logged. Add Africa\'s Talking credentials in Settings to send live SMS.');
     document.getElementById('sms-body').value='';
     updateSmsCount('');
     loadMessages();
@@ -2479,12 +2479,12 @@ async function sendSms() {
 }
 
 async function testSms() {
-  const body = document.getElementById('sms-body').value.trim() || 'GroupYetu360 test SMS. Your platform is connected to Africa's Talking.';
+  const body = document.getElementById('sms-body').value.trim() || 'GroupYetu360 test SMS. Your platform is connected to Africa\'s Talking.';
   const myPhone = currentProfile?.phone;
   if (!myPhone) { toast('Add your phone number in My Account first'); return; }
   const atKey = currentOrg?.at_api_key;
   const atUser = currentOrg?.at_username || 'sandbox';
-  if (!atKey) { toast('Add your Africa's Talking API key in Settings first'); return; }
+  if (!atKey) { toast('Add your Africa\'s Talking API key in Settings first'); return; }
   try {
     const formData = new URLSearchParams();
     formData.append('username', atUser);
