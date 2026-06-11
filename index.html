@@ -688,7 +688,7 @@ tr:hover td{background:var(--maroon-pale)}
         <div><div class="section-title">Welfare</div><div class="section-sub">Bereavement contributions</div></div>
         <button class="btn btn-primary" onclick="showModal('welfareEvent')">+ New Welfare Event</button>
       </div>
-      <div class="alert alert-info">ℹ Standard rates per constitution: Member death Ksh 1,000 · Spouse/Parent Ksh 750 · Child Ksh 500</div>
+      <div class="alert alert-info" id="welfare-rates-alert">&#8505; Loading welfare rates…</div>
       <div id="welfare-events-list"><div class="loading"><div class="spinner"></div>Loading…</div></div>
     </div>
 
@@ -868,6 +868,31 @@ tr:hover td{background:var(--maroon-pale)}
       </div>
     </div>
 
+
+    <!-- MY ACCOUNT (all roles) -->
+    <div class="page" id="page-my_account">
+      <div class="section-header"><div><div class="section-title">My Account</div><div class="section-sub">Update your personal information and password</div></div></div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Personal Information</div></div>
+          <div class="card-body">
+            <div class="form-row single"><div class="form-group"><label class="form-label">Full Name</label><input class="form-input" id="acct-name" placeholder="Your full name"/></div></div>
+            <div class="form-row single"><div class="form-group"><label class="form-label">Phone Number</label><input class="form-input" id="acct-phone" placeholder="07XXXXXXXX"/></div></div>
+            <div class="form-row single"><div class="form-group"><label class="form-label">Email Address</label><input class="form-input" id="acct-email" disabled style="background:var(--surface-3);color:var(--ink-faint)"/><div style="font-size:.68rem;color:var(--ink-faint);margin-top:.2rem">Email cannot be changed here. Contact your group admin.</div></div></div>
+            <div class="form-actions"><button class="btn btn-primary" onclick="saveAccountInfo()">Save Changes</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Change Password</div></div>
+          <div class="card-body">
+            <div class="alert alert-info" id="acct-msg" style="display:none"></div>
+            <div class="form-group"><label class="form-label">New Password</label><input class="form-input" type="password" id="acct-new-pass" placeholder="Minimum 6 characters"/></div>
+            <div class="form-group"><label class="form-label">Confirm Password</label><input class="form-input" type="password" id="acct-confirm-pass" placeholder="Repeat new password"/></div>
+            <div class="form-actions"><button class="btn btn-primary" onclick="saveNewPassword()">Update Password</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- MEMBER: MY PROFILE -->
     <div class="page" id="page-my_profile">
@@ -1714,6 +1739,7 @@ const pageTitles = {
   sa_members: ['All Members', 'Platform-wide member directory'],
   sa_finance: ['Revenue', 'Subscription & billing overview'],
   my_profile: ['My Profile', 'Your member details'],
+  my_account: ['My Account', 'Personal information & password'],
   my_contributions: ['My Contributions', 'Your payment history'],
   approvals: ['Member Approvals', 'Review and approve access requests'],
   members: ['Members', 'Member register'],
@@ -1735,7 +1761,7 @@ function showPage(id) {
   const info = pageTitles[id] || [id, ''];
   document.getElementById('page-title').textContent = info[0];
   document.getElementById('page-sub').textContent = info[1] || currentOrg?.name || '';
-  const loaders = { members: loadMembers, finance: loadFinance, meetings: loadMeetings, welfare: loadWelfare, projects: loadProjects, messages: loadMessages, settings: loadSettings, superadmin: loadSuperAdmin, sa_members: loadSAMembers, sa_finance: loadSAFinance, my_profile: loadMyProfile, my_contributions: loadMyContributions, approvals: loadApprovals };
+  const loaders = { members: loadMembers, finance: loadFinance, meetings: loadMeetings, welfare: loadWelfare, projects: loadProjects, messages: loadMessages, settings: loadSettings, superadmin: loadSuperAdmin, sa_members: loadSAMembers, sa_finance: loadSAFinance, my_profile: loadMyProfile, my_contributions: loadMyContributions, approvals: loadApprovals, my_account: loadMyAccount };
   if (loaders[id]) loaders[id]();
 }
 
@@ -2182,6 +2208,14 @@ async function saveMeeting() {
 // ── WELFARE ──
 async function loadWelfare() {
   if (!currentOrg?.id) return;
+  // Update welfare rates alert dynamically
+  const alertEl = document.getElementById('welfare-rates-alert');
+  if (alertEl) {
+    const mRate = currentOrg?.welfare_rate_member || 1000;
+    const sRate = currentOrg?.welfare_rate_spouse || 750;
+    const cRate = currentOrg?.welfare_rate_child || 500;
+    alertEl.innerHTML = `&#8505; Welfare rates for ${currentOrg.name}: Member death <strong>Ksh ${mRate.toLocaleString()}</strong> &middot; Spouse/Parent <strong>Ksh ${sRate.toLocaleString()}</strong> &middot; Child <strong>Ksh ${cRate.toLocaleString()}</strong> <span style="font-size:.7rem;margin-left:.5rem"><a onclick="showPage('settings')" style="color:var(--maroon);cursor:pointer">Edit in Settings</a></span>`;
+  }
   const { data } = await sb.from('welfare_events').select('*,members(full_name)').eq('org_id', currentOrg.id).order('created_at',{ascending:false});
   const events = data || [];
   document.getElementById('welfare-events-list').innerHTML = events.length ? events.map(e => `
@@ -3044,6 +3078,41 @@ async function handleDeclinedRole() {
 }
 
 // ── MEMBER PORTAL LOADERS ──
+async function loadMyAccount() {
+  const el = id => document.getElementById(id);
+  if (el('acct-name')) el('acct-name').value = currentProfile?.full_name || '';
+  if (el('acct-phone')) el('acct-phone').value = currentProfile?.phone || '';
+  if (el('acct-email')) el('acct-email').value = currentUser?.email || '';
+  const msgEl = el('acct-msg');
+  if (msgEl) msgEl.style.display = 'none';
+}
+
+async function saveAccountInfo() {
+  const name = document.getElementById('acct-name')?.value.trim();
+  const phone = document.getElementById('acct-phone')?.value.trim();
+  if (!name) { toast('Please enter your name'); return; }
+  const { error } = await sb.from('profiles').update({ full_name: name, phone }).eq('id', currentUser.id);
+  if (error) { toast('Error: '+error.message); return; }
+  currentProfile.full_name = name;
+  currentProfile.phone = phone;
+  updateSidebar();
+  toast('Profile updated successfully');
+}
+
+async function saveNewPassword() {
+  const newPass = document.getElementById('acct-new-pass')?.value;
+  const confirmPass = document.getElementById('acct-confirm-pass')?.value;
+  const msgEl = document.getElementById('acct-msg');
+  if (!newPass || newPass.length < 6) { toast('Password must be at least 6 characters'); return; }
+  if (newPass !== confirmPass) { toast('Passwords do not match'); return; }
+  const { error } = await sb.auth.updateUser({ password: newPass });
+  if (error) { toast('Error: '+error.message); return; }
+  if (msgEl) { msgEl.textContent = '✓ Password updated successfully'; msgEl.className = 'alert alert-success'; msgEl.style.display = 'flex'; }
+  document.getElementById('acct-new-pass').value = '';
+  document.getElementById('acct-confirm-pass').value = '';
+  toast('Password updated successfully');
+}
+
 async function loadMyProfile() {
   if (!currentOrg?.id || !currentProfile) return;
   document.getElementById('my-profile-org').textContent = currentOrg.name;
