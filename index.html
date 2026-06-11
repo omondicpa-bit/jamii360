@@ -739,11 +739,18 @@ tr:hover td{background:var(--maroon-pale)}
             </div>
             <div class="form-actions">
               <button class="btn btn-primary" onclick="sendSms()">Send SMS</button>
+              <button class="btn btn-secondary" onclick="testSms()">Test (Send to Me)</button>
               <button class="btn btn-secondary" onclick="document.getElementById('sms-body').value='';updateSmsCount('')">Clear</button>
             </div>
           </div>
         </div>
         <div>
+          <div class="card" id="sms-status-card">
+            <div class="card-header"><div class="card-title">SMS Integration Status</div></div>
+            <div class="card-body" id="sms-status-body">
+              <div class="loading"><div class="spinner"></div>Checking…</div>
+            </div>
+          </div>
           <div class="card">
             <div class="card-header"><div class="card-title">Payment Details</div></div>
             <div class="card-body">
@@ -805,6 +812,15 @@ tr:hover td{background:var(--maroon-pale)}
               <div class="form-group"><label class="form-label">Bank Balance (Ksh)</label><input class="form-input" type="number" id="settings-bank-balance" placeholder="Current bank balance"/></div>
               <div class="form-group"><label class="form-label">Balance Date</label><input class="form-input" type="date" id="settings-bank-date"/></div>
             </div>
+            <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:.75rem 0 .5rem">SMS Integration (Africa's Talking)</div>
+            <div class="form-row">
+              <div class="form-group"><label class="form-label">AT Username</label><input class="form-input" id="settings-at-username" placeholder="sandbox or your username"/></div>
+              <div class="form-group"><label class="form-label">AT API Key</label><input class="form-input" type="password" id="settings-at-key" placeholder="Your Africa's Talking API key"/></div>
+            </div>
+            <div class="form-row single">
+              <div class="form-group"><label class="form-label">Sender ID (optional)</label><input class="form-input" id="settings-at-sender" placeholder="e.g. GROUPYETU (must be registered with AT)"/></div>
+            </div>
+            <div class="alert alert-info" style="margin-bottom:.5rem">&#8505; Get your API key from africastalking.com. Use <strong>sandbox</strong> for testing — SMS go to the AT simulator. Switch to your real username for live SMS.</div>
             <div class="form-actions"><button class="btn btn-primary" onclick="saveSettings()">Save Changes</button></div>
           </div>
         </div>
@@ -2322,6 +2338,25 @@ async function loadMessages() {
     if (adminSection) adminSection.style.display = 'block';
   }
   document.getElementById('msg-paybill').textContent = currentOrg?.paybill || '—';
+  // Show SMS integration status
+  const statusEl = document.getElementById('sms-status-body');
+  if (statusEl) {
+    const hasAT = !!currentOrg?.at_api_key;
+    const atUser = currentOrg?.at_username || 'sandbox';
+    const isSandbox = atUser === 'sandbox';
+    statusEl.innerHTML = hasAT ? `
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+        <span style="color:var(--success);font-size:1.2rem">✓</span>
+        <span style="font-size:.85rem;font-weight:600;color:var(--success)">Connected — ${isSandbox ? 'Sandbox Mode' : 'Live Mode'}</span>
+      </div>
+      <div style="font-size:.75rem;color:var(--ink-faint);line-height:1.7">
+        Username: <strong>${atUser}</strong><br>
+        ${isSandbox ? '⚠ Sandbox mode: SMS go to AT simulator, not real phones.' : '✓ Live mode: SMS sent to real phones.'}
+      </div>
+      ${isSandbox ? '<div class="alert alert-warn" style="margin-top:.75rem;font-size:.72rem">To go live: update username to your AT account name in Settings</div>' : ''}` :
+      `<div style="font-size:.82rem;color:var(--ink-faint);margin-bottom:.75rem">Not connected. Messages are logged but not sent.</div>
+      <button class="btn btn-primary btn-sm" onclick="showPage('settings')">Connect Africa's Talking →</button>`;
+  }
   const { data } = await sb.from('messages_log').select('*').eq('org_id', currentOrg?.id||'').order('sent_at',{ascending:false}).limit(10);
   const logs = data || [];
   document.getElementById('msg-history').innerHTML = logs.length ? `<div class="timeline" style="padding:0 1.25rem">${logs.map(l=>`
@@ -2352,11 +2387,140 @@ async function sendSms() {
   const body = document.getElementById('sms-body').value.trim();
   if (!body) { toast('Please enter a message'); return; }
   const recipientType = document.getElementById('sms-recipients').value;
-  const count = allMembers.length;
-  await sb.from('messages_log').insert({ org_id: currentOrg?.id, recipient_type: recipientType, body, recipient_count: count, sent_by: currentUser.id });
-  toast(`Message logged for ${count} recipients. Connect Africa's Talking API to send live SMS.`);
-  document.getElementById('sms-body').value=''; updateSmsCount('');
+
+  // Get phone numbers based on recipient type
+  let recipients = [];
+  if (recipientType === 'all') {
+    recipients = allMembers.filter(m => m.phone).map(m => formatPhone(m.phone));
+  } else if (recipientType === 'active') {
+    recipients = allMembers.filter(m => m.phone && m.status === 'active').map(m => formatPhone(m.phone));
+  } else if (recipientType === 'arrears') {
+    recipients = allMembers.filter(m => m.phone && m.status === 'arrears').map(m => formatPhone(m.phone));
+  }
+
+  if (!recipients.length) { toast('No phone numbers found for selected recipients'); return; }
+
+  // Check if org has AT credentials
+  const atKey = currentOrg?.at_api_key;
+  const atUser = currentOrg?.at_username || 'sandbox';
+
+  if (!atKey) {
+    // Log only — no AT credentials
+    await sb.from('messages_log').insert({
+      org_id: currentOrg?.id,
+      recipient_type: recipientType,
+      body,
+      recipient_count: recipients.length,
+      sent_by: currentUser.id
+    });
+    toast('Message logged. Add Africa's Talking credentials in Settings to send live SMS.');
+    document.getElementById('sms-body').value='';
+    updateSmsCount('');
+    loadMessages();
+    return;
+  }
+
+  // Send via Africa's Talking
+  toast('Sending SMS to ' + recipients.length + ' recipients…');
+  try {
+    const formData = new URLSearchParams();
+    formData.append('username', atUser);
+    formData.append('to', recipients.join(','));
+    formData.append('message', body);
+    if (currentOrg?.at_sender_id) formData.append('from', currentOrg.at_sender_id);
+
+    const baseUrl = atUser === 'sandbox'
+      ? 'https://api.sandbox.africastalking.com/version1/messaging'
+      : 'https://api.africastalking.com/version1/messaging';
+
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'apiKey': atKey
+      },
+      body: formData
+    });
+
+    const result = await res.json();
+    console.log('AT Response:', result);
+
+    const sent = result?.SMSMessageData?.Recipients?.filter(r => r.status === 'Success')?.length || 0;
+    const failed = recipients.length - sent;
+
+    // Log to database
+    await sb.from('messages_log').insert({
+      org_id: currentOrg?.id,
+      recipient_type: recipientType,
+      body,
+      recipient_count: sent,
+      sent_by: currentUser.id
+    });
+
+    if (failed > 0) {
+      toast(`SMS sent to ${sent} recipients. ${failed} failed. Check console for details.`);
+    } else {
+      toast(`✓ SMS sent successfully to ${sent} recipients`);
+    }
+  } catch(e) {
+    console.error('SMS error:', e);
+    // Still log the attempt
+    await sb.from('messages_log').insert({
+      org_id: currentOrg?.id,
+      recipient_type: recipientType,
+      body,
+      recipient_count: 0,
+      sent_by: currentUser.id
+    });
+    toast('SMS failed: ' + e.message + '. Message logged.');
+  }
+
+  document.getElementById('sms-body').value='';
+  updateSmsCount('');
   loadMessages();
+}
+
+async function testSms() {
+  const body = document.getElementById('sms-body').value.trim() || 'GroupYetu360 test SMS. Your platform is connected to Africa's Talking.';
+  const myPhone = currentProfile?.phone;
+  if (!myPhone) { toast('Add your phone number in My Account first'); return; }
+  const atKey = currentOrg?.at_api_key;
+  const atUser = currentOrg?.at_username || 'sandbox';
+  if (!atKey) { toast('Add your Africa's Talking API key in Settings first'); return; }
+  try {
+    const formData = new URLSearchParams();
+    formData.append('username', atUser);
+    formData.append('to', formatPhone(myPhone));
+    formData.append('message', body);
+    const baseUrl = atUser === 'sandbox'
+      ? 'https://api.sandbox.africastalking.com/version1/messaging'
+      : 'https://api.africastalking.com/version1/messaging';
+    const res = await fetch(baseUrl, {
+      method: 'POST',
+      headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded', 'apiKey': atKey },
+      body: formData
+    });
+    const result = await res.json();
+    console.log('Test SMS result:', result);
+    const status = result?.SMSMessageData?.Recipients?.[0]?.status;
+    if (status === 'Success') {
+      toast('✓ Test SMS sent to ' + myPhone);
+    } else {
+      toast('Test sent (sandbox). Check AT simulator. Status: ' + (status||'unknown'));
+    }
+  } catch(e) {
+    toast('Test failed: ' + e.message);
+  }
+}
+
+function formatPhone(phone) {
+  // Convert Kenyan numbers to international format
+  phone = phone.replace(/\s+/g, '').replace(/-/g, '');
+  if (phone.startsWith('0')) return '+254' + phone.slice(1);
+  if (phone.startsWith('254')) return '+' + phone;
+  if (phone.startsWith('+')) return phone;
+  return '+254' + phone;
 }
 
 function copyPaybill() {
@@ -2377,6 +2541,9 @@ async function loadSettings() {
   setVal('settings-account', currentOrg.account_format);
   setVal('settings-bank-balance', currentOrg.bank_balance||0);
   setVal('settings-bank-date', currentOrg.bank_balance_updated);
+  setVal('settings-at-username', currentOrg.at_username||'sandbox');
+  setVal('settings-at-key', currentOrg.at_api_key||'');
+  setVal('settings-at-sender', currentOrg.at_sender_id||'');
 
   const { data } = await sb.from('contribution_types').select('*').eq('org_id', currentOrg.id).order('name');
   allContribTypes = data || [];
@@ -2474,13 +2641,17 @@ async function deleteContribType(id, name) {
 
 async function saveSettings() {
   if (!currentOrg?.id) return;
+  const atKey = document.getElementById('settings-at-key')?.value?.trim();
   const updates = {
     name: document.getElementById('settings-name').value.trim(),
     reg_number: document.getElementById('settings-reg').value.trim(),
     paybill: document.getElementById('settings-paybill').value.trim(),
     account_format: document.getElementById('settings-account').value.trim(),
     bank_balance: parseFloat(document.getElementById('settings-bank-balance').value)||0,
-    bank_balance_updated: document.getElementById('settings-bank-date').value||null
+    bank_balance_updated: document.getElementById('settings-bank-date').value||null,
+    at_username: document.getElementById('settings-at-username')?.value?.trim()||'sandbox',
+    at_api_key: atKey || currentOrg.at_api_key || null,
+    at_sender_id: document.getElementById('settings-at-sender')?.value?.trim()||null
   };
   const { error } = await sb.from('organisations').update(updates).eq('id', currentOrg.id);
   if (error) { toast('Error: '+error.message); return; }
