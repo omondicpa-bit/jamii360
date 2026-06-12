@@ -872,6 +872,17 @@ tr:hover td{background:var(--maroon-pale)}
     <!-- SUPERADMIN -->
     <div class="page active" id="page-superadmin">
       <div class="section-header"><div><div class="section-title">EPH Technologies — Platform Control</div><div class="section-sub">GroupYetu360 Super Admin Panel</div></div></div>
+      <!-- Pending Payment Alert -->
+      <div id="sa-payment-alert" style="display:none;background:var(--warning-pale);border:1.5px solid var(--warning);padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <span style="font-size:1.4rem">💳</span>
+          <div>
+            <div style="font-size:.88rem;font-weight:700;color:var(--warning)">Pending Payment Requests</div>
+            <div style="font-size:.78rem;color:var(--ink-soft)" id="sa-payment-alert-text">Loading...</div>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="showPage('sa_billing')" style="background:var(--warning);border:none">Review Now →</button>
+      </div>
       <div class="stats-row">
         <div class="platform-stat stat-card gold"><div class="stat-label">Organisations</div><div class="stat-value" id="sa-orgs">—</div></div>
         <div class="platform-stat stat-card green"><div class="stat-label">Total Members</div><div class="stat-value" id="sa-members">—</div></div>
@@ -1015,6 +1026,31 @@ tr:hover td{background:var(--maroon-pale)}
       <div class="card">
         <div class="card-header"><div class="card-title">All Subscriptions</div></div>
         <div id="sa-subscriptions-list"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- SUPERADMIN ACTIVITY LOG -->
+    <div class="page" id="page-sa_activity">
+      <div class="section-header">
+        <div><div class="section-title">Activity Log</div><div class="section-sub">Audit trail of all admin actions across all organisations</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">Recent Activity</div><div class="card-sub">Sensitive actions: debits, credits, deletions, expense recording</div></div>
+          <div style="display:flex;gap:.5rem">
+            <select class="form-select" id="activity-filter-org" style="font-size:.75rem;padding:.3rem .5rem" onchange="loadSAActivity()">
+              <option value="">All Organisations</option>
+            </select>
+            <select class="form-select" id="activity-filter-action" style="font-size:.75rem;padding:.3rem .5rem" onchange="loadSAActivity()">
+              <option value="">All Actions</option>
+              <option value="CREDIT">Credits</option>
+              <option value="DEBIT">Debits</option>
+              <option value="DELETE">Deletions</option>
+              <option value="EXPENSE">Expenses</option>
+            </select>
+          </div>
+        </div>
+        <div id="sa-activity-list"><div class="loading"><div class="spinner"></div>Loading...</div></div>
       </div>
     </div>
 
@@ -1296,6 +1332,18 @@ tr:hover td{background:var(--maroon-pale)}
             <option value="false">Pending</option>
           </select>
         </div>
+        <div style="font-size:.72rem;font-weight:600;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.08em;margin:.75rem 0 .5rem">Portal Access</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            <input class="form-input" type="email" id="md-edit-email" placeholder="member@email.com"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Set / Reset Password</label>
+            <input class="form-input" type="text" id="md-edit-password" placeholder="Leave blank to keep existing"/>
+          </div>
+        </div>
+        <div style="font-size:.68rem;color:var(--ink-faint);margin-bottom:.75rem">Set email and password to give this member portal access. Leave password blank to keep existing.</div>
         <div class="form-actions">
           <button class="btn btn-primary" onclick="saveMemberDetail()">Save Changes</button>
           <button class="btn btn-danger btn-sm" onclick="deleteMember()" style="margin-left:auto">Delete Member</button>
@@ -1862,6 +1910,7 @@ function buildNav() {
     <a class="nav-item" onclick="showPage('sa_members')" href="#"><span class="nav-icon">◉</span> All Members</a>
     <a class="nav-item" onclick="showPage('sa_finance')" href="#"><span class="nav-icon">₭</span> Revenue</a>
     <a class="nav-item" onclick="showPage('sa_billing')" href="#"><span class="nav-icon">💳</span> Billing</a>
+    <a class="nav-item" onclick="showPage('sa_activity')" href="#"><span class="nav-icon">📋</span> Activity Log</a>
     <a class="nav-item" onclick="showPage('sa_support')" href="#"><span class="nav-icon">☎</span> Support Settings</a>`;
   }
   document.getElementById('sidebar-nav').innerHTML = nav;
@@ -1919,6 +1968,7 @@ const pageTitles = {
   support: ['Support', 'Get help with GroupYetu360'],
   sa_billing: ['Billing Management', 'Review payments and subscriptions'],
   sa_support: ['Support Settings', 'Configure contact details'],
+  sa_activity: ['Activity Log', 'Audit trail of all admin actions'],
   my_contributions: ['My Contributions', 'Your payment history'],
   approvals: ['Member Approvals', 'Review and approve access requests'],
   members: ['Members', 'Member register'],
@@ -1940,7 +1990,7 @@ function showPage(id) {
   const info = pageTitles[id] || [id, ''];
   document.getElementById('page-title').textContent = info[0];
   document.getElementById('page-sub').textContent = info[1] || currentOrg?.name || '';
-  const loaders = { members: loadMembers, finance: loadFinance, meetings: loadMeetings, welfare: loadWelfare, projects: loadProjects, messages: loadMessages, settings: loadSettings, superadmin: loadSuperAdmin, sa_members: loadSAMembers, sa_finance: loadSAFinance, my_profile: loadMyProfile, my_contributions: loadMyContributions, approvals: loadApprovals, my_account: loadMyAccount, billing: loadBilling, support: loadSupport, sa_billing: loadSABilling, sa_support: loadSASupport };
+  const loaders = { members: loadMembers, finance: loadFinance, meetings: loadMeetings, welfare: loadWelfare, projects: loadProjects, messages: loadMessages, settings: loadSettings, superadmin: loadSuperAdmin, sa_members: loadSAMembers, sa_finance: loadSAFinance, my_profile: loadMyProfile, my_contributions: loadMyContributions, approvals: loadApprovals, my_account: loadMyAccount, billing: loadBilling, support: loadSupport, sa_billing: loadSABilling, sa_support: loadSASupport, sa_activity: loadSAActivity };
   if (loaders[id]) loaders[id]();
 }
 
@@ -2283,6 +2333,7 @@ async function saveExpense() {
   if (!payload.amount || !payload.description) { toast('Please fill in description and amount'); return; }
   const { error } = await sb.from('expenses').insert(payload);
   if (error) { toast('Error: ' + error.message); return; }
+  await logActivity('RECORD EXPENSE', `Recorded expense: ${payload.category} - ${payload.description} Ksh ${payload.amount}`, 'expense');
   toast('Expense recorded');
   clearExpForm(); loadFinance();
 }
@@ -2876,6 +2927,20 @@ async function loadSuperAdmin() {
   document.getElementById('sa-revenue').textContent = 'Ksh '+revenue.toLocaleString();
   const memberCountByOrg = {};
   members.forEach(m => { memberCountByOrg[m.org_id] = (memberCountByOrg[m.org_id]||0)+1; });
+  // Check pending payments and show alert
+  try {
+    const { data: pendingPays } = await sb.from('payment_requests').select('id,organisations(name)').eq('status','pending');
+    const alertEl = document.getElementById('sa-payment-alert');
+    const alertText = document.getElementById('sa-payment-alert-text');
+    if (alertEl && pendingPays?.length > 0) {
+      alertEl.style.display = 'flex';
+      const orgNames = [...new Set(pendingPays.map(p => p.organisations?.name).filter(Boolean))];
+      alertText.textContent = `${pendingPays.length} request${pendingPays.length>1?'s':''} from: ${orgNames.join(', ')}`;
+    } else if (alertEl) {
+      alertEl.style.display = 'none';
+    }
+  } catch(e) { console.log('No payment_requests table yet'); }
+
   document.getElementById('sa-org-list').innerHTML = orgs.length ? orgs.map(o => `
     <div class="org-row" style="cursor:pointer" onclick="openOrgDetail('${o.id}')">
       <div>
@@ -3114,6 +3179,8 @@ async function openMemberDetail(memberId) {
   document.getElementById('md-edit-opening-shares').value = m.opening_shares||0;
   document.getElementById('md-edit-opening-savings').value = m.opening_savings||0;
   document.getElementById('md-edit-reg').value = m.registration_paid?'true':'false';
+  document.getElementById('md-edit-email').value = m.portal_email||'';
+  document.getElementById('md-edit-password').value = '';
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('adj-date').value = today;
   // Load history
@@ -3167,9 +3234,45 @@ async function saveMemberDetail() {
     shares_balance: (current.shares_balance||0) + sharesDiff,
     savings_balance: (current.savings_balance||0) + savingsDiff
   };
+  const portalEmail = document.getElementById('md-edit-email')?.value?.trim();
+  const portalPassword = document.getElementById('md-edit-password')?.value?.trim();
+
+  // Save member record
+  if (portalEmail) updates.portal_email = portalEmail;
   const { error } = await sb.from('members').update(updates).eq('id', currentMemberId);
   if (error) { toast('Error: '+error.message); return; }
-  toast('Member updated successfully');
+
+  // Create or update portal account if email provided
+  if (portalEmail && portalPassword && portalPassword.length >= 6) {
+    try {
+      // Try to create new auth account
+      const { data: authData, error: authErr } = await sb.auth.signUp({
+        email: portalEmail,
+        password: portalPassword,
+        options: { data: { full_name: updates.full_name } }
+      });
+      if (!authErr && authData?.user) {
+        await sb.from('profiles').upsert({
+          id: authData.user.id,
+          org_id: currentOrg.id,
+          role: 'member',
+          full_name: updates.full_name,
+          phone: updates.phone
+        });
+        toast('Member updated + portal account created ✓');
+      } else {
+        toast('Member updated. Portal: ' + (authErr?.message||'check email'));
+      }
+    } catch(e) {
+      toast('Member saved. Portal account: ' + e.message);
+    }
+  } else if (portalEmail && !portalPassword) {
+    toast('Member updated. Add a password to activate portal access.');
+  } else {
+    toast('Member updated successfully');
+  }
+
+  await logActivity('UPDATE MEMBER', `Updated member details for ${updates.full_name}${portalEmail?' (portal: '+portalEmail+')':''}`, 'member', currentMemberId);
   closeModal('memberDetail');
   loadMembers();
 }
@@ -3200,6 +3303,13 @@ async function saveAdjustment() {
   const newBal = direction==='credit'?currentBal+amount:Math.max(0,currentBal-amount);
   await sb.from('members').update({ [balField]: newBal }).eq('id', currentMemberId);
   toast(`${direction==='credit'?'Credit':'Debit'} of Ksh ${amount.toLocaleString()} applied to ${adjType}`);
+  // Log this sensitive action
+  const { data: m } = await sb.from('members').select('full_name').eq('id', currentMemberId).single().catch(()=>({data:null}));
+  await logActivity(
+    `${direction.toUpperCase()} ${adjType}`,
+    `${direction==='credit'?'Credited':'Debited'} Ksh ${amount.toLocaleString()} ${adjType} for ${m?.full_name||'member'}. Reason: ${reason}`,
+    'member', currentMemberId
+  );
   // Refresh display
   const { data: updated } = await sb.from('members').select('shares_balance,savings_balance').eq('id', currentMemberId).single();
   document.getElementById('md-shares-bal').textContent = 'Ksh ' + (updated.shares_balance||0).toLocaleString();
@@ -3219,6 +3329,7 @@ async function deleteMember() {
   await sb.from('transactions').delete().eq('member_id', currentMemberId);
   await sb.from('attendance').delete().eq('member_id', currentMemberId);
   await sb.from('members').delete().eq('id', currentMemberId);
+  await logActivity('DELETE MEMBER', `Deleted member: ${m.full_name}`, 'member', currentMemberId);
   toast(m.full_name + ' removed');
   closeModal('memberDetail');
   currentMemberId = null;
@@ -3577,6 +3688,79 @@ async function updatePassword() {
   setTimeout(() => window.location.href = window.location.pathname, 2000);
 }
 
+// ── ACTIVITY LOG (Audit Trail) ──
+async function logActivity(action, details, targetType = null, targetId = null) {
+  try {
+    if (!currentUser?.id) return;
+    await sb.from('activity_log').insert({
+      org_id: currentOrg?.id || null,
+      user_id: currentUser.id,
+      user_name: currentProfile?.full_name || currentUser.email,
+      user_role: currentProfile?.role || 'unknown',
+      action,
+      details,
+      target_type: targetType,
+      target_id: targetId,
+      created_at: new Date().toISOString()
+    });
+  } catch(e) {
+    // Silently fail if table doesn't exist yet
+    console.log('Activity log skipped:', e.message);
+  }
+}
+
+// ── ACTIVITY LOG LOADER ──
+async function loadSAActivity() {
+  const listEl = document.getElementById('sa-activity-list');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+
+  // Populate org filter
+  const orgFilter = document.getElementById('activity-filter-org');
+  if (orgFilter && orgFilter.options.length <= 1) {
+    const { data: orgs } = await sb.from('organisations').select('id,name').order('name');
+    (orgs||[]).forEach(o => {
+      const opt = document.createElement('option');
+      opt.value = o.id; opt.textContent = o.name;
+      orgFilter.appendChild(opt);
+    });
+  }
+
+  const orgId = document.getElementById('activity-filter-org')?.value;
+  const action = document.getElementById('activity-filter-action')?.value;
+
+  try {
+    let query = sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(100);
+    if (orgId) query = query.eq('org_id', orgId);
+    if (action) query = query.ilike('action', `%${action}%`);
+    const { data: logs, error } = await query;
+
+    if (error) throw error;
+
+    listEl.innerHTML = (logs||[]).length ? `
+      <table>
+        <thead><tr><th>Time</th><th>Organisation</th><th>Admin</th><th>Role</th><th>Action</th><th>Details</th></tr></thead>
+        <tbody>${(logs||[]).map(l => {
+          const isDebit = l.action?.includes('DEBIT');
+          const isDel = l.action?.includes('DELETE');
+          const isCredit = l.action?.includes('CREDIT');
+          const badgeClass = isDel ? 'badge-red' : isDebit ? 'badge-warn' : isCredit ? 'badge-green' : 'badge-grey';
+          return `<tr>
+            <td style="font-size:.72rem;color:var(--ink-faint)">${new Date(l.created_at).toLocaleString('en-KE',{dateStyle:'short',timeStyle:'short'})}</td>
+            <td><span class="badge badge-maroon" style="font-size:.65rem">${l.org_id ? 'org' : 'platform'}</span></td>
+            <td><strong style="font-size:.8rem">${l.user_name||'Unknown'}</strong></td>
+            <td><span class="badge badge-grey" style="font-size:.65rem">${l.user_role||'—'}</span></td>
+            <td><span class="badge ${badgeClass}" style="font-size:.65rem">${l.action||'—'}</span></td>
+            <td style="font-size:.75rem;color:var(--ink-soft);max-width:300px">${l.details||'—'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>` :
+      '<div style="padding:2rem;text-align:center;color:var(--ink-faint);font-size:.85rem">No activity logged yet. Actions will appear here as admins use the platform.</div>';
+  } catch(e) {
+    listEl.innerHTML = '<div style="padding:1.5rem;color:var(--ink-faint);font-size:.82rem">Activity log table not yet created. Run the SQL migration first.</div>';
+  }
+}
+
 // ── BILLING SYSTEM ──
 
 const PLAN_PRICES = { starter: 0, basic: 3000, standard: 6000, pro: 12000 };
@@ -3898,20 +4082,46 @@ async function saveSupportSettings() {
 // ── SUBSCRIPTION LIMIT ENFORCEMENT ──
 async function checkSubscriptionAccess() {
   if (!currentOrg?.id || currentProfile?.role === 'superadmin') return true;
-  const { data: org } = await sb.from('organisations').select('subscription_status,subscription_expires,plan').eq('id', currentOrg.id).single();
-  if (!org) return true;
-  const expires = org.subscription_expires;
-  if (expires && new Date(expires) < new Date() && org.plan !== 'starter') {
-    // Show subscription expired warning
-    const warningHtml = `
-      <div style="position:fixed;top:0;left:0;right:0;background:var(--danger);color:#fff;padding:.75rem 2rem;z-index:999;display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:.85rem;font-weight:600">⚠ Your subscription has expired. Some features may be limited.</span>
-        <button onclick="showPage('billing')" style="background:#fff;color:var(--danger);border:none;padding:.3rem .75rem;font-size:.75rem;font-weight:700;cursor:pointer">Renew Now</button>
-      </div>`;
-    const warningEl = document.createElement('div');
-    warningEl.innerHTML = warningHtml;
-    document.body.prepend(warningEl.firstChild);
-  }
+  try {
+    const { data: org } = await sb.from('organisations')
+      .select('subscription_status,subscription_expires,plan,name')
+      .eq('id', currentOrg.id).single();
+    if (!org) return true;
+
+    // Remove any existing banner first
+    document.getElementById('sub-warning-banner')?.remove();
+
+    const expires = org.subscription_expires;
+    const now = new Date();
+    const expDate = expires ? new Date(expires) : null;
+    const daysLeft = expDate ? Math.ceil((expDate - now)/(1000*60*60*24)) : null;
+    const isExpired = expDate && expDate < now && org.plan !== 'starter';
+    const isExpiringSoon = daysLeft !== null && daysLeft <= 14 && daysLeft > 0;
+
+    if (isExpired) {
+      const banner = document.createElement('div');
+      banner.id = 'sub-warning-banner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:var(--danger);color:#fff;padding:.65rem 1.5rem;z-index:999;display:flex;align-items:center;justify-content:space-between;font-family:Inter,sans-serif';
+      banner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <span style="font-size:1.1rem">🔒</span>
+          <span style="font-size:.82rem;font-weight:600">Subscription expired on ${expDate.toDateString()}. Please renew to continue full access.</span>
+        </div>
+        <button onclick="showPage('billing')" style="background:#fff;color:var(--danger);border:none;padding:.3rem .9rem;font-size:.75rem;font-weight:700;cursor:pointer;border-radius:2px">Renew Now →</button>`;
+      document.body.prepend(banner);
+      // Adjust main content
+      document.querySelector('.main').style.paddingTop = '42px';
+    } else if (isExpiringSoon) {
+      const banner = document.createElement('div');
+      banner.id = 'sub-warning-banner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:var(--warning);color:#fff;padding:.5rem 1.5rem;z-index:999;display:flex;align-items:center;justify-content:space-between;font-family:Inter,sans-serif';
+      banner.innerHTML = `
+        <span style="font-size:.78rem;font-weight:600">⚠ Subscription expires in ${daysLeft} days (${expDate.toDateString()}). Renew early to avoid interruption.</span>
+        <button onclick="showPage('billing')" style="background:#fff;color:var(--warning);border:none;padding:.25rem .75rem;font-size:.72rem;font-weight:700;cursor:pointer">Renew →</button>`;
+      document.body.prepend(banner);
+      document.querySelector('.main').style.paddingTop = '36px';
+    }
+  } catch(e) { console.log('Subscription check skipped'); }
   return true;
 }
 
