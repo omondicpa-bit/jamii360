@@ -812,15 +812,8 @@ tr:hover td{background:var(--maroon-pale)}
               <div class="form-group"><label class="form-label">Bank Balance (Ksh)</label><input class="form-input" type="number" id="settings-bank-balance" placeholder="Current bank balance"/></div>
               <div class="form-group"><label class="form-label">Balance Date</label><input class="form-input" type="date" id="settings-bank-date"/></div>
             </div>
-            <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:.75rem 0 .5rem">SMS Integration (Africa\'s Talking)</div>
-            <div class="form-row">
-              <div class="form-group"><label class="form-label">AT Username</label><input class="form-input" id="settings-at-username" placeholder="sandbox or your username"/></div>
-              <div class="form-group"><label class="form-label">AT API Key</label><input class="form-input" type="password" id="settings-at-key" placeholder="Your Africa\'s Talking API key"/></div>
-            </div>
-            <div class="form-row single">
-              <div class="form-group"><label class="form-label">Sender ID (optional)</label><input class="form-input" id="settings-at-sender" placeholder="e.g. GROUPYETU (must be registered with AT)"/></div>
-            </div>
-            <div class="alert alert-info" style="margin-bottom:.5rem">&#8505; Get your API key from africastalking.com. Use <strong>sandbox</strong> for testing — SMS go to the AT simulator. Switch to your real username for live SMS.</div>
+            <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:.75rem 0 .5rem">SMS Integration</div>
+            <div class="alert alert-info">&#8505; SMS is managed centrally by GroupYetu360. Your SMS bundle and usage are shown in <strong>Billing & SMS</strong>. Contact support to top up your SMS bundle.</div>
             <div class="form-actions"><button class="btn btn-primary" onclick="saveSettings()">Save Changes</button></div>
           </div>
         </div>
@@ -989,7 +982,7 @@ tr:hover td{background:var(--maroon-pale)}
             </div>
             <div style="margin-bottom:1rem">
               <div style="font-size:.85rem;font-weight:600;color:var(--ink);margin-bottom:.25rem">How do I send SMS to members?</div>
-              <div style="font-size:.78rem;color:var(--ink-faint)">Go to Messages, add your Africa's Talking credentials in Settings first, then compose and send.</div>
+              <div style="font-size:.78rem;color:var(--ink-faint)">Go to Messages, compose your message and click Send SMS. SMS is managed centrally by GroupYetu360. Your plan includes a monthly SMS bundle — check Billing & SMS for your usage.</div>
             </div>
             <div style="margin-bottom:1rem">
               <div style="font-size:.85rem;font-weight:600;color:var(--ink);margin-bottom:.25rem">How do I renew my subscription?</div>
@@ -1060,14 +1053,23 @@ tr:hover td{background:var(--maroon-pale)}
       <div class="card" style="max-width:600px">
         <div class="card-header"><div class="card-title">Platform Contact Details</div></div>
         <div class="card-body">
-          <div class="alert alert-info">These details are shown to all organisations on the Support page.</div>
+          <div class="alert alert-info">These details are shown to all organisations on their Support page.</div>
           <div class="form-row single"><div class="form-group"><label class="form-label">Support Phone Number</label><input class="form-input" id="sp-phone" placeholder="e.g. 0792385970"/></div></div>
           <div class="form-row single"><div class="form-group"><label class="form-label">Support Email</label><input class="form-input" id="sp-email" placeholder="e.g. support@groupyetu360.com"/></div></div>
-          <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:.75rem 0 .5rem">Payment Details (shown to organisations paying for subscription)</div>
+          <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:.75rem 0 .5rem">Payment Details (shown to organisations for subscription payment)</div>
           <div class="form-row single"><div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" id="sp-bank-name" placeholder="e.g. Equity Bank"/></div></div>
           <div class="form-row"><div class="form-group"><label class="form-label">Account Number</label><input class="form-input" id="sp-bank-account" placeholder="Account number"/></div><div class="form-group"><label class="form-label">Account Name</label><input class="form-input" id="sp-bank-account-name" placeholder="e.g. EPH Technologies"/></div></div>
           <div class="form-row single"><div class="form-group"><label class="form-label">M-Pesa Paybill (if any)</label><input class="form-input" id="sp-paybill" placeholder="Optional"/></div></div>
-          <div class="form-row single"><div class="form-group"><label class="form-label">WhatsApp Support Link (optional)</label><input class="form-input" id="sp-whatsapp" placeholder="e.g. https://wa.me/254792385970"/></div></div>
+          <div class="form-row single"><div class="form-group"><label class="form-label">WhatsApp Support Link</label><input class="form-input" id="sp-whatsapp" placeholder="e.g. https://wa.me/254792385970?text=Hello%20GroupYetu360"/></div></div>
+          <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:1rem 0 .5rem;padding-top:.75rem;border-top:1px solid var(--border)">SMS Integration (Africa's Talking — Platform Level)</div>
+          <div class="alert alert-info" style="margin-bottom:.75rem">&#8505; These credentials are used by ALL organisations on the platform. You manage SMS centrally — orgs only see their usage and bundle.</div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">AT Username</label><input class="form-input" id="sp-at-username" placeholder="Your AT account username"/></div>
+            <div class="form-group"><label class="form-label">AT API Key</label><input class="form-input" type="password" id="sp-at-key" placeholder="Your Africa's Talking API key"/></div>
+          </div>
+          <div class="form-row single">
+            <div class="form-group"><label class="form-label">Sender ID</label><input class="form-input" id="sp-at-sender" placeholder="e.g. GY360 (once approved by AT)"/></div>
+          </div>
           <div class="form-actions"><button class="btn btn-primary" onclick="saveSupportSettings()">Save Settings</button></div>
         </div>
       </div>
@@ -2604,12 +2606,16 @@ async function loadMessages() {
     if (adminSection) adminSection.style.display = 'block';
   }
   document.getElementById('msg-paybill').textContent = currentOrg?.paybill || '—';
-  // Show SMS integration status
+  // Show SMS integration status (platform-level)
   const statusEl = document.getElementById('sms-status-body');
   if (statusEl) {
-    const hasAT = !!currentOrg?.at_api_key;
-    const atUser = currentOrg?.at_username || 'sandbox';
-    const isSandbox = atUser === 'sandbox';
+    let hasAT = false, atUser = 'sandbox', isSandbox = true;
+    try {
+      const { data: ps } = await sb.from('platform_settings').select('at_api_key,at_username').maybeSingle();
+      hasAT = !!ps?.at_api_key;
+      atUser = ps?.at_username || 'sandbox';
+      isSandbox = atUser === 'sandbox';
+    } catch(e) {}
     statusEl.innerHTML = hasAT ? `
       <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
         <span style="color:var(--success);font-size:1.2rem">✓</span>
@@ -2707,7 +2713,7 @@ async function sendSms() {
         apiKey: atKey,
         to: recipients,
         message: body,
-        senderId: currentOrg?.at_sender_id || null
+        senderId: atSender
       })
     });
 
@@ -2781,7 +2787,7 @@ async function testSms() {
         apiKey: atKey,
         to: [formatPhone(myPhone)],
         message: body,
-        senderId: currentOrg?.at_sender_id || null
+        senderId: atSender
       })
     });
     const testResult = await testRes.json();
@@ -4001,12 +4007,21 @@ async function submitPaymentRequest() {
 
 // ── SUPPORT PAGE ──
 async function loadSupport() {
-  const { data: settings } = await sb.from('platform_settings').select('*').single().catch(()=>({data:null}));
   const el = document.getElementById('support-contact-content');
   if (!el) return;
-  const phone = settings?.support_phone || '0792385970';
-  const email = settings?.support_email || 'support@groupyetu360.com';
-  const whatsapp = `https://wa.me/${phone.replace(/^0/, '254').replace(/\s/g,'')}`;
+  // Default values in case platform_settings table doesn't exist yet
+  let phone = '0792385970';
+  let email = 'support@groupyetu360.com';
+  let whatsapp = 'https://wa.me/254702903544?text=Hello%20GroupYetu360%20Support';
+  try {
+    const { data: settings } = await sb.from('platform_settings').select('*').maybeSingle();
+    if (settings) {
+      phone = settings.support_phone || phone;
+      email = settings.support_email || email;
+      whatsapp = settings.whatsapp || `https://wa.me/${phone.replace(/^0/,'254').replace(/\s/g,'')}`;
+    }
+  } catch(e) { console.log('Platform settings not yet created'); }
+  const wa = whatsapp || `https://wa.me/${phone.replace(/^0/,'254').replace(/\s/g,'')}`;
   el.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:1.25rem">
       <div style="display:flex;align-items:center;gap:1rem;padding:1rem;background:var(--surface-2);border:1px solid var(--border)">
@@ -4014,7 +4029,7 @@ async function loadSupport() {
         <div>
           <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-faint)">Phone / WhatsApp</div>
           <div style="font-size:1rem;font-weight:700;color:var(--ink)">${phone}</div>
-          <a href="${whatsapp}" target="_blank" style="font-size:.75rem;color:var(--maroon);font-weight:600">Open in WhatsApp →</a>
+          <a href="${wa}" target="_blank" style="font-size:.75rem;color:var(--maroon);font-weight:600">Open in WhatsApp →</a>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:1rem;padding:1rem;background:var(--surface-2);border:1px solid var(--border)">
@@ -4147,8 +4162,11 @@ async function rejectPayment(paymentId) {
 
 // ── SUPPORT SETTINGS (superadmin) ──
 async function loadSASupport() {
-  const { data: settings } = await sb.from('platform_settings').select('*').single().catch(()=>({data:{}}));
-  const s = settings||{};
+  let s = {};
+  try {
+    const { data: settings } = await sb.from('platform_settings').select('*').maybeSingle();
+    if (settings) s = settings;
+  } catch(e) { console.log('Platform settings not yet created'); }
   const setVal = (id, val) => { const el=document.getElementById(id); if(el) el.value=val||''; };
   setVal('sp-phone', s.support_phone||'0792385970');
   setVal('sp-email', s.support_email||'support@groupyetu360.com');
@@ -4156,10 +4174,14 @@ async function loadSASupport() {
   setVal('sp-bank-account', s.bank_account||'');
   setVal('sp-bank-account-name', s.bank_account_name||'EPH Technologies');
   setVal('sp-paybill', s.paybill||'');
-  setVal('sp-whatsapp', s.whatsapp||'');
+  setVal('sp-whatsapp', s.whatsapp||'https://wa.me/254702903544?text=Hello%20GroupYetu360%20Support');
+  setVal('sp-at-username', s.at_username||'');
+  setVal('sp-at-key', s.at_api_key||'');
+  setVal('sp-at-sender', s.at_sender_id||'');
 }
 
 async function saveSupportSettings() {
+  const atKey = document.getElementById('sp-at-key')?.value?.trim();
   const payload = {
     id: 1,
     support_phone: document.getElementById('sp-phone')?.value?.trim(),
@@ -4169,6 +4191,9 @@ async function saveSupportSettings() {
     bank_account_name: document.getElementById('sp-bank-account-name')?.value?.trim(),
     paybill: document.getElementById('sp-paybill')?.value?.trim()||null,
     whatsapp: document.getElementById('sp-whatsapp')?.value?.trim()||null,
+    at_username: document.getElementById('sp-at-username')?.value?.trim()||null,
+    at_api_key: atKey || null,
+    at_sender_id: document.getElementById('sp-at-sender')?.value?.trim()||null,
     updated_at: new Date().toISOString()
   };
   const { error } = await sb.from('platform_settings').upsert(payload);
