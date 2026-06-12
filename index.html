@@ -2798,9 +2798,12 @@ async function testSms() {
   const body = document.getElementById('sms-body').value.trim() || `GroupYetu360 test SMS. Your platform is connected to Africa's Talking.`;
   const myPhone = currentProfile?.phone;
   if (!myPhone) { toast('Add your phone number in My Account first'); return; }
-  const atKey = currentOrg?.at_api_key;
-  const atUser = currentOrg?.at_username || 'sandbox';
-  if (!atKey) { toast(`Add your Africa's Talking API key in Settings first`); return; }
+  let atKey = null, atUser = 'sandbox', atSender = null;
+  try {
+    const { data: ps } = await sb.from('platform_settings').select('at_api_key,at_username,at_sender_id').maybeSingle();
+    if (ps?.at_api_key) { atKey = ps.at_api_key; atUser = ps.at_username||'sandbox'; atSender = ps.at_sender_id; }
+  } catch(e) {}
+  if (!atKey) { toast('SMS not configured. Contact GroupYetu360 support.'); return; }
   try {
     const formData = new URLSearchParams();
     formData.append('username', atUser);
