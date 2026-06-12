@@ -1109,6 +1109,17 @@ tr:hover td{background:var(--maroon-pale)}
               <div class="stat-card"><div class="stat-label">Member Number</div><div class="stat-value" id="mp-number" style="font-size:1.3rem">—</div></div>
               <div class="stat-card green"><div class="stat-label">Status</div><div class="stat-value" id="mp-status" style="font-size:1.3rem">—</div></div>
             </div>
+            <!-- Balances -->
+            <div class="stats-row" style="grid-template-columns:repeat(2,1fr);margin-bottom:1rem">
+              <div class="stat-card" style="border-top-color:var(--maroon)">
+                <div class="stat-label">Shares Balance</div>
+                <div class="stat-value" id="mp-shares-bal-display" style="font-size:1.2rem;color:var(--maroon)">—</div>
+              </div>
+              <div class="stat-card gold">
+                <div class="stat-label">Savings Balance</div>
+                <div class="stat-value" id="mp-savings-bal-display" style="font-size:1.2rem">—</div>
+              </div>
+            </div>
             <table style="width:100%">
               <tbody id="mp-details"></tbody>
             </table>
@@ -1152,6 +1163,35 @@ tr:hover td{background:var(--maroon-pale)}
           <tbody id="mc-table"><tr><td colspan="5"><div class="loading"><div class="spinner"></div>Loading…</div></td></tr></tbody>
         </table>
       </div>
+    </div>
+
+    <!-- MEMBER: MY MEETINGS -->
+    <div class="page" id="page-my_meetings">
+      <div class="section-header">
+        <div><div class="section-title">Meetings</div><div class="section-sub" id="my-meetings-sub">Upcoming and past meetings</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Upcoming Meetings</div></div>
+          <div id="my-upcoming-meetings"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">My Attendance Record</div></div>
+          <div id="my-attendance-record"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Past Meetings</div></div>
+        <div id="my-past-meetings"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+      </div>
+    </div>
+
+    <!-- MEMBER: MY NOTICES -->
+    <div class="page" id="page-my_notices">
+      <div class="section-header">
+        <div><div class="section-title">Notices</div><div class="section-sub">Messages from your group admin</div></div>
+      </div>
+      <div id="my-notices-list"><div class="loading"><div class="spinner"></div>Loading...</div></div>
     </div>
 
     <!-- SUPERADMIN: ALL MEMBERS -->
@@ -1889,9 +1929,19 @@ function buildNav() {
   const isAdmin = role === 'admin' || role === 'officer' || isSuperAdmin;
   let nav = '';
   if (!isSuperAdmin) {
-    nav += `<div class="nav-label">Main</div>
-    <a class="nav-item active" onclick="showPage('dashboard')" href="#"><span class="nav-icon">⊞</span> Dashboard</a>
-    <a class="nav-item" onclick="showPage('members')" href="#"><span class="nav-icon">◉</span> Members</a>`;
+    if (role === 'member') {
+      // Member portal - restricted view, own data only
+      nav += `<div class="nav-label">My Portal</div>
+      <a class="nav-item active" onclick="showPage('my_profile')" href="#"><span class="nav-icon">◉</span> My Profile</a>
+      <a class="nav-item" onclick="showPage('my_contributions')" href="#"><span class="nav-icon">₭</span> My Contributions</a>
+      <a class="nav-item" onclick="showPage('my_meetings')" href="#"><span class="nav-icon">◷</span> Meetings</a>
+      <a class="nav-item" onclick="showPage('my_notices')" href="#"><span class="nav-icon">✉</span> Notices</a>
+      <a class="nav-item" onclick="showPage('my_account')" href="#"><span class="nav-icon">⚙</span> My Account</a>`;
+    } else {
+      nav += `<div class="nav-label">Main</div>
+      <a class="nav-item active" onclick="showPage('dashboard')" href="#"><span class="nav-icon">⊞</span> Dashboard</a>
+      <a class="nav-item" onclick="showPage('members')" href="#"><span class="nav-icon">◉</span> Members</a>`;
+    }
     if (isAdmin) nav += `
     <a class="nav-item" onclick="showPage('finance')" href="#"><span class="nav-icon">₭</span> Finance</a>
     <a class="nav-item" onclick="showPage('meetings')" href="#"><span class="nav-icon">◷</span> Meetings</a>
@@ -1922,8 +1972,8 @@ function buildNav() {
       <button class="topbar-btn outline" onclick="showModal('recordPayment')">+ Record Payment</button>
       <button class="topbar-btn" onclick="showModal('addMember')">+ Add Member</button>`;
   } else {
-    // member — read only
-    topbar.innerHTML = '<span style="font-size:.75rem;color:var(--ink-faint);padding:.4rem .75rem;border:1px solid var(--border)">Member View — Read Only</span>';
+    // member portal
+    topbar.innerHTML = `<span style="font-size:.75rem;color:var(--maroon);font-weight:600;padding:.4rem .75rem;background:var(--maroon-pale);border:1px solid var(--maroon-muted)">${currentOrg?.name||'My Organisation'}</span>`;
   }
 }
 
@@ -1969,6 +2019,8 @@ const pageTitles = {
   sa_billing: ['Billing Management', 'Review payments and subscriptions'],
   sa_support: ['Support Settings', 'Configure contact details'],
   sa_activity: ['Activity Log', 'Audit trail of all admin actions'],
+  my_meetings: ['Meetings', 'Scheduled meetings and attendance'],
+  my_notices: ['Notices', 'Messages from your group admin'],
   my_contributions: ['My Contributions', 'Your payment history'],
   approvals: ['Member Approvals', 'Review and approve access requests'],
   members: ['Members', 'Member register'],
@@ -1990,7 +2042,7 @@ function showPage(id) {
   const info = pageTitles[id] || [id, ''];
   document.getElementById('page-title').textContent = info[0];
   document.getElementById('page-sub').textContent = info[1] || currentOrg?.name || '';
-  const loaders = { members: loadMembers, finance: loadFinance, meetings: loadMeetings, welfare: loadWelfare, projects: loadProjects, messages: loadMessages, settings: loadSettings, superadmin: loadSuperAdmin, sa_members: loadSAMembers, sa_finance: loadSAFinance, my_profile: loadMyProfile, my_contributions: loadMyContributions, approvals: loadApprovals, my_account: loadMyAccount, billing: loadBilling, support: loadSupport, sa_billing: loadSABilling, sa_support: loadSASupport, sa_activity: loadSAActivity };
+  const loaders = { members: loadMembers, finance: loadFinance, meetings: loadMeetings, welfare: loadWelfare, projects: loadProjects, messages: loadMessages, settings: loadSettings, superadmin: loadSuperAdmin, sa_members: loadSAMembers, sa_finance: loadSAFinance, my_profile: loadMyProfile, my_contributions: loadMyContributions, approvals: loadApprovals, my_account: loadMyAccount, billing: loadBilling, support: loadSupport, sa_billing: loadSABilling, sa_support: loadSASupport, sa_activity: loadSAActivity, my_meetings: loadMyMeetings, my_notices: loadMyNotices };
   if (loaders[id]) loaders[id]();
 }
 
@@ -3577,58 +3629,103 @@ async function saveNewPassword() {
 async function loadMyProfile() {
   if (!currentOrg?.id || !currentProfile) return;
   document.getElementById('my-profile-org').textContent = currentOrg.name;
-  document.getElementById('mp-paybill').textContent = currentOrg.paybill || '—';
-  // Find their member record by phone or name
-  const { data: members } = await sb.from('members').select('*').eq('org_id', currentOrg.id);
-  const myRecord = members?.find(m =>
-    m.phone?.replace(/\s/g,'') === currentProfile.phone?.replace(/\s/g,'') ||
-    m.full_name?.toLowerCase() === currentProfile.full_name?.toLowerCase()
-  );
+  document.getElementById('mp-paybill').textContent = currentOrg?.paybill || '—';
+  document.getElementById('mp-shares-amount').textContent = 'Ksh 300';
+
+  let myRecord = null;
+  // Try portal_email match first
+  if (currentUser?.email) {
+    const { data: byEmail } = await sb.from('members')
+      .select('*').eq('org_id', currentOrg.id)
+      .eq('portal_email', currentUser.email).maybeSingle().catch(()=>({data:null}));
+    if (byEmail) myRecord = byEmail;
+  }
+  // Fallback: phone or name match
+  if (!myRecord) {
+    const { data: members } = await sb.from('members').select('*').eq('org_id', currentOrg.id);
+    myRecord = (members||[]).find(m =>
+      (currentProfile.phone && m.phone?.replace(/[^0-9]/g,'') === currentProfile.phone?.replace(/[^0-9]/g,'')) ||
+      m.full_name?.toLowerCase().trim() === currentProfile.full_name?.toLowerCase().trim()
+    );
+  }
+
   if (myRecord) {
+    window._myMemberId = myRecord.id;
     document.getElementById('mp-number').textContent = '#' + (myRecord.member_number||'—');
-    document.getElementById('mp-status').innerHTML = `<span class="badge ${myRecord.status==='active'?'badge-green':'badge-warn'}">${myRecord.status}</span>`;
+    document.getElementById('mp-status').innerHTML = `<span class="badge ${myRecord.status==='active'?'badge-green':myRecord.status==='arrears'?'badge-warn':'badge-grey'}">${myRecord.status}</span>`;
     document.getElementById('mp-savings-tier').textContent = 'Ksh ' + (myRecord.savings_tier||500).toLocaleString() + '/mo';
     document.getElementById('mp-reg-status').innerHTML = myRecord.registration_paid ?
-      '<span class="badge badge-green">Paid ✓</span>' :
-      '<span class="badge badge-warn">Pending</span>';
+      '<span class="badge badge-green">Paid ✓</span>' : '<span class="badge badge-warn">Pending</span>';
     document.getElementById('mp-details').innerHTML = `
-      <tr><td style="padding:.5rem 0;font-size:.78rem;color:var(--ink-faint);width:120px">Full Name</td><td style="font-size:.85rem;font-weight:600">${myRecord.full_name}</td></tr>
+      <tr><td style="padding:.5rem 0;font-size:.78rem;color:var(--ink-faint);width:130px">Full Name</td><td style="font-size:.85rem;font-weight:600">${myRecord.full_name}</td></tr>
       <tr><td style="padding:.5rem 0;font-size:.78rem;color:var(--ink-faint)">Phone</td><td style="font-size:.85rem">${myRecord.phone||'—'}</td></tr>
       <tr><td style="padding:.5rem 0;font-size:.78rem;color:var(--ink-faint)">ID Number</td><td style="font-size:.85rem">${myRecord.id_number||'—'}</td></tr>
-      <tr><td style="padding:.5rem 0;font-size:.78rem;color:var(--ink-faint)">Join Date</td><td style="font-size:.85rem">${myRecord.join_date||'—'}</td></tr>
-    `;
+      <tr><td style="padding:.5rem 0;font-size:.78rem;color:var(--ink-faint)">Join Date</td><td style="font-size:.85rem">${myRecord.join_date||'—'}</td></tr>`;
+    const sharesEl = document.getElementById('mp-shares-bal-display');
+    const savingsEl = document.getElementById('mp-savings-bal-display');
+    if (sharesEl) sharesEl.textContent = 'Ksh ' + (myRecord.shares_balance||0).toLocaleString();
+    if (savingsEl) savingsEl.textContent = 'Ksh ' + (myRecord.savings_balance||0).toLocaleString();
   } else {
+    window._myMemberId = null;
     document.getElementById('mp-number').textContent = 'Pending';
     document.getElementById('mp-status').innerHTML = '<span class="badge badge-grey">Not linked</span>';
-    document.getElementById('mp-details').innerHTML = '<tr><td colspan="2" style="padding:1rem;color:var(--ink-faint);font-size:.82rem">Your account has not been linked to a member record yet. Please contact your group admin.</td></tr>';
+    document.getElementById('mp-details').innerHTML = '<tr><td colspan="2" style="padding:1rem;color:var(--ink-faint);font-size:.82rem;line-height:1.7">Your account has not been linked to a member record yet.<br>Please contact your group admin.</td></tr>';
   }
 }
 
 async function loadMyContributions() {
   if (!currentOrg?.id || !currentProfile) return;
-  // Find member record first
-  const { data: members } = await sb.from('members').select('id').eq('org_id', currentOrg.id);
-  const myRecord = members?.find(m => m.id);
-  // Get all transactions for this org and filter by member
+
+  // Get member ID - use stored one or look it up
+  let memberId = window._myMemberId;
+  if (!memberId) {
+    await loadMyProfile(); // This sets window._myMemberId
+    memberId = window._myMemberId;
+  }
+
+  if (!memberId) {
+    document.getElementById('mc-table').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-faint)">No member record linked to your account. Contact your admin.</td></tr>';
+    return;
+  }
+
+  // Fetch ONLY this member's transactions
   const { data: txns } = await sb.from('transactions')
     .select('*,contribution_types(name)')
-    .eq('org_id', currentOrg.id)
-    .order('created_at', {ascending:false});
+    .eq('member_id', memberId)
+    .order('transaction_date', {ascending: false});
+
+  // Also fetch adjustments
+  const { data: adjs } = await sb.from('balance_adjustments')
+    .select('*').eq('member_id', memberId).order('created_at',{ascending:false});
+
   const thisYear = new Date().getFullYear().toString();
-  const total = txns?.reduce((s,t)=>s+Number(t.amount||0),0)||0;
-  const yearTotal = txns?.filter(t=>(t.transaction_date||t.created_at||''). startsWith(thisYear)).reduce((s,t)=>s+Number(t.amount||0),0)||0;
+  const total = (txns||[]).reduce((s,t)=>s+Number(t.amount||0),0);
+  const yearTotal = (txns||[]).filter(t=>(t.transaction_date||t.created_at||'').startsWith(thisYear))
+    .reduce((s,t)=>s+Number(t.amount||0),0);
+
   document.getElementById('mc-total').textContent = 'Ksh ' + total.toLocaleString();
   document.getElementById('mc-year').textContent = 'Ksh ' + yearTotal.toLocaleString();
-  document.getElementById('mc-count').textContent = txns?.length || 0;
-  document.getElementById('mc-table').innerHTML = txns?.length ? txns.map(t=>`
-    <tr>
+  document.getElementById('mc-count').textContent = (txns||[]).length;
+
+  const rows = [
+    ...(txns||[]).map(t => `<tr>
       <td>${t.transaction_date||t.created_at?.split('T')[0]||'—'}</td>
       <td><span class="badge badge-green">${t.contribution_types?.name||'Payment'}</span></td>
-      <td><strong>Ksh ${Number(t.amount).toLocaleString()}</strong></td>
-      <td>${t.mpesa_ref||'—'}</td>
+      <td><strong style="color:var(--success)">+Ksh ${Number(t.amount).toLocaleString()}</strong></td>
+      <td style="font-family:monospace;font-size:.75rem">${t.mpesa_ref||'—'}</td>
       <td>${t.notes||'—'}</td>
-    </tr>`).join('') :
-    '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-faint)">No contributions recorded yet</td></tr>';
+    </tr>`),
+    ...(adjs||[]).map(a => `<tr>
+      <td>${a.created_at?.split('T')[0]||'—'}</td>
+      <td><span class="badge ${a.direction==='credit'?'badge-maroon':'badge-warn'}">${a.direction==='credit'?'Credit':'Debit'} — ${a.adjustment_type}</span></td>
+      <td><strong style="color:${a.direction==='credit'?'var(--success)':'var(--danger)'}">${a.direction==='credit'?'+':'-'}Ksh ${Number(a.amount).toLocaleString()}</strong></td>
+      <td>—</td>
+      <td>${a.reason||'—'}</td>
+    </tr>`)
+  ];
+
+  document.getElementById('mc-table').innerHTML = rows.length ? rows.join('') :
+    '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-faint)">No contributions recorded yet. Payments will appear here once your admin records them.</td></tr>';
 }
 
 // ── HANDLE PASSWORD RESET ──
@@ -4154,6 +4251,105 @@ async function trackSmsUsage(orgId, messagesSent) {
   await sb.from('organisations')
     .update({ sms_used: (existing?.messages_sent||0) + messagesSent })
     .eq('id', orgId);
+}
+
+// ── MEMBER MEETINGS ──
+async function loadMyMeetings() {
+  if (!currentOrg?.id) return;
+  const today = new Date().toISOString().split('T')[0];
+  const memberId = window._myMemberId;
+
+  const [upRes, pastRes] = await Promise.all([
+    sb.from('meetings').select('*').eq('org_id', currentOrg.id)
+      .gte('meeting_date', today).order('meeting_date').limit(5),
+    sb.from('meetings').select('*').eq('org_id', currentOrg.id)
+      .lt('meeting_date', today).order('meeting_date',{ascending:false}).limit(10)
+  ]);
+
+  const upcoming = upRes.data || [];
+  const past = pastRes.data || [];
+
+  document.getElementById('my-meetings-sub').textContent = currentOrg.name + ' meetings';
+
+  const upEl = document.getElementById('my-upcoming-meetings');
+  upEl.innerHTML = upcoming.length ? upcoming.map(m => `
+    <div style="padding:1rem;border-bottom:1px solid var(--border)">
+      <div style="font-size:.95rem;font-weight:700;color:var(--maroon)">${new Date(m.meeting_date).toDateString()}</div>
+      <div style="font-size:.78rem;color:var(--ink-faint);margin:.2rem 0">${m.meeting_time||'8:30 PM'} · ${m.venue||'Online'}</div>
+      ${m.agenda ? `<div style="font-size:.78rem;color:var(--ink-soft);margin-top:.5rem;line-height:1.7;white-space:pre-line">${m.agenda}</div>` : ''}
+    </div>`).join('') :
+    '<div style="padding:1.5rem;text-align:center;color:var(--ink-faint);font-size:.82rem">No upcoming meetings scheduled</div>';
+
+  // Attendance record
+  const attEl = document.getElementById('my-attendance-record');
+  if (memberId && past.length) {
+    const meetingIds = past.map(m => m.id);
+    const { data: attData } = await sb.from('attendance')
+      .select('*').eq('member_id', memberId).in('meeting_id', meetingIds);
+    const attMap = {};
+    (attData||[]).forEach(a => attMap[a.meeting_id] = a.status);
+    const present = Object.values(attMap).filter(s=>s==='present').length;
+    const apology = Object.values(attMap).filter(s=>s==='apology').length;
+    const absent = Object.values(attMap).filter(s=>s==='absent').length;
+    const total = past.length;
+    const pct = total > 0 ? Math.round((present/total)*100) : 0;
+    attEl.innerHTML = `
+      <div style="text-align:center;padding:1rem">
+        <div style="font-size:2.5rem;font-weight:700;color:${pct>=75?'var(--success)':pct>=50?'var(--warning)':'var(--danger)'}">${pct}%</div>
+        <div style="font-size:.75rem;color:var(--ink-faint);margin-bottom:1rem">Attendance Rate</div>
+      </div>
+      <div class="progress-row"><div class="progress-label" style="min-width:80px">Present</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:var(--success)"></div></div>
+        <div class="progress-val">${present}/${total}</div></div>
+      <div class="progress-row"><div class="progress-label" style="min-width:80px">Apology</div>
+        <div class="progress-bar"><div class="progress-fill gold" style="width:${total>0?Math.round((apology/total)*100):0}%"></div></div>
+        <div class="progress-val">${apology}/${total}</div></div>`;
+  } else {
+    attEl.innerHTML = '<div style="padding:1.5rem;text-align:center;color:var(--ink-faint);font-size:.82rem">Attendance records will appear here once meetings are recorded</div>';
+  }
+
+  const pastEl = document.getElementById('my-past-meetings');
+  pastEl.innerHTML = past.length ? `
+    <table><thead><tr><th>Date</th><th>Venue</th><th>My Status</th></tr></thead>
+    <tbody>${past.map(m => {
+      const memberId2 = window._myMemberId;
+      return `<tr>
+        <td>${new Date(m.meeting_date).toDateString()}</td>
+        <td>${m.venue||'Online'}</td>
+        <td id="att-${m.id}"><span class="badge badge-grey">—</span></td>
+      </tr>`;
+    }).join('')}</tbody></table>` :
+    '<div style="padding:1.5rem;text-align:center;color:var(--ink-faint);font-size:.82rem">No past meetings recorded yet</div>';
+
+  // Load attendance status for past meetings
+  if (memberId) {
+    const { data: myAtt } = await sb.from('attendance')
+      .select('meeting_id,status').eq('member_id', memberId);
+    (myAtt||[]).forEach(a => {
+      const el = document.getElementById(`att-${a.meeting_id}`);
+      if (el) el.innerHTML = `<span class="badge ${a.status==='present'?'badge-green':a.status==='apology'?'badge-warn':'badge-red'}">${a.status}</span>`;
+    });
+  }
+}
+
+async function loadMyNotices() {
+  if (!currentOrg?.id) return;
+  const { data: msgs } = await sb.from('messages_log')
+    .select('*').eq('org_id', currentOrg.id)
+    .order('sent_at',{ascending:false}).limit(20);
+
+  const el = document.getElementById('my-notices-list');
+  el.innerHTML = (msgs||[]).length ? (msgs||[]).map(m => `
+    <div class="card" style="margin-bottom:1rem">
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.5rem">
+          <span class="badge badge-maroon">${m.recipient_type==='all'?'All Members':m.recipient_type==='active'?'Active Members':m.recipient_type||'Notice'}</span>
+          <span style="font-size:.72rem;color:var(--ink-faint)">${m.sent_at?new Date(m.sent_at).toDateString():'—'}</span>
+        </div>
+        <div style="font-size:.85rem;color:var(--ink);line-height:1.7">${m.body||'—'}</div>
+      </div>
+    </div>`).join('') :
+    '<div style="padding:2rem;text-align:center;color:var(--ink-faint);font-size:.85rem">No notices yet. Messages from your group admin will appear here.</div>';
 }
 
 // ── START ──
