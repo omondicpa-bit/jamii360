@@ -309,6 +309,16 @@ tr:hover td{background:var(--maroon-pale)}
         <div class="auth-error" id="login-error"></div>
         <div class="auth-success" id="login-success"></div>
         <div class="form-group">
+          <label class="form-label">Organisation Code</label>
+          <input class="form-input" type="text" id="login-org-code"
+            placeholder="e.g. ADA-001 — from your admin"
+            style="text-transform:uppercase;letter-spacing:.08em;font-weight:600"
+            oninput="this.value=this.value.toUpperCase()"/>
+          <div style="font-size:.68rem;color:var(--ink-faint);margin-top:.2rem">
+            Leave blank if you are the organisation admin
+          </div>
+        </div>
+        <div class="form-group">
           <label class="form-label">Email Address</label>
           <input class="form-input" type="email" id="login-email" placeholder="your@email.com"/>
         </div>
@@ -851,7 +861,8 @@ tr:hover td{background:var(--maroon-pale)}
         <div class="card">
           <div class="card-header"><div class="card-title">Organisation Details</div></div>
           <div class="card-body">
-            <div class="form-row single"><div class="form-group"><label class="form-label">Organisation Name</label><input class="form-input" id="settings-name"/></div></div>
+            <div class="form-row"><div class="form-group"><label class="form-label">Organisation Name</label><input class="form-input" id="settings-name"/></div>
+            <div class="form-group"><label class="form-label">Organisation Code</label><input class="form-input" id="settings-org-code" readonly style="background:var(--surface-3);font-weight:700;letter-spacing:.1em;color:var(--maroon)"/><div style="font-size:.68rem;color:var(--ink-faint);margin-top:.2rem">Share this code with members to let them log in</div></div></div>
             <div class="form-row"><div class="form-group"><label class="form-label">Registration Number</label><input class="form-input" id="settings-reg"/></div><div class="form-group"><label class="form-label">Paybill Number</label><input class="form-input" id="settings-paybill"/></div></div>
             <div class="form-row single"><div class="form-group"><label class="form-label">Account Format</label><input class="form-input" id="settings-account" placeholder="e.g. ADA-[MEMBER NAME]"/></div></div>
             <div class="form-row">
@@ -1468,7 +1479,10 @@ tr:hover td{background:var(--maroon-pale)}
             <input class="form-input" type="text" id="md-edit-password" placeholder="Leave blank to keep existing"/>
           </div>
         </div>
-        <div style="font-size:.68rem;color:var(--ink-faint);margin-bottom:.75rem">Set email and password to give this member portal access. Leave password blank to keep existing.</div>
+        <div class="alert alert-info" style="font-size:.72rem;margin-bottom:.5rem">
+          Member's org code: <strong>${currentOrg?.org_code||'—'}</strong> — they will need this to log in.
+          Set email and a temporary password below.
+        </div>
         <div class="form-actions">
           <button class="btn btn-primary" onclick="saveMemberDetail()">Save Changes</button>
           <button class="btn btn-secondary btn-sm" onclick="promoteToAdmin()" id="promote-btn" style="margin-left:.5rem">👤 Set Portal Role</button>
@@ -1509,6 +1523,59 @@ tr:hover td{background:var(--maroon-pale)}
       <div class="tab-panel" id="md-tab-history">
         <div id="md-history-list"><div class="loading"><div class="spinner"></div>Loading…</div></div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MEMBER PAYMENT MODAL -->
+<div class="modal-overlay" id="modal-memberPayment">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Make a Payment</div>
+        <div style="font-size:.72rem;color:var(--ink-faint);margin-top:.15rem" id="mp-modal-paybill">Pay via M-Pesa Paybill: —</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('memberPayment')">✕</button>
+    </div>
+    <div class="modal-body">
+      <!-- Step 1: Enter total amount -->
+      <div id="mp-step-1">
+        <div class="alert alert-info" style="margin-bottom:1rem">
+          ℹ Enter the total amount you are paying via M-Pesa, then allocate it across payment categories below.
+        </div>
+        <div class="form-group">
+          <label class="form-label">Total Amount Paid (Ksh)</label>
+          <input class="form-input" type="number" id="mp-total-amount"
+            placeholder="e.g. 1200" oninput="distributePayment(this.value)"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">M-Pesa Reference</label>
+          <input class="form-input" id="mp-mpesa-ref" placeholder="e.g. QBC4X8YZDE"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Payment Date</label>
+          <input class="form-input" type="date" id="mp-pay-date"/>
+        </div>
+
+        <!-- Allocation section -->
+        <div style="font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:.75rem 0 .5rem">Allocate Payment</div>
+        <div id="mp-allocations">
+          <div class="loading"><div class="spinner"></div>Loading contribution types...</div>
+        </div>
+
+        <!-- Running total -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.75rem;background:var(--surface-2);border:1px solid var(--border);margin-top:.75rem">
+          <span style="font-size:.82rem;color:var(--ink-faint)">Total Allocated:</span>
+          <span id="mp-allocated-total" style="font-size:1rem;font-weight:700;color:var(--maroon)">Ksh 0</span>
+        </div>
+        <div id="mp-allocation-warning" style="display:none;font-size:.72rem;color:var(--danger);margin-top:.3rem">
+          ⚠ Allocated amount doesn't match total paid
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('memberPayment')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitMemberPayment()">Submit Payment</button>
     </div>
   </div>
 </div>
@@ -1556,10 +1623,10 @@ tr:hover td{background:var(--maroon-pale)}
   <div class="modal" style="max-width:480px">
     <div class="modal-header"><div class="modal-title">Invite Admin / Officer</div><button class="modal-close" onclick="closeModal('inviteAdmin')">&#10005;</button></div>
     <div class="modal-body">
-      <div class="alert alert-info">This person will be able to log in and manage your organisation's records.</div>
+      <div class="alert alert-info">This person will receive an email with your organisation code and a link to set their password.</div>
       <div class="form-group"><label class="form-label">Full Name</label><input class="form-input" id="invite-name" placeholder="Full name"/></div>
       <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" type="email" id="invite-email" placeholder="their@email.com"/></div>
-      <div class="form-group"><label class="form-label">Temporary Password</label><input class="form-input" type="text" id="invite-password" placeholder="They can change this later"/></div>
+      <div class="form-group"><label class="form-label">Temporary Password</label><input class="form-input" type="text" id="invite-password" placeholder="They can change this after first login"/><div style="font-size:.68rem;color:var(--ink-faint);margin-top:.2rem">System will also send them an email with your org code (${currentOrg?.org_code||'—'})</div></div>
       <div class="form-group"><label class="form-label">Role</label>
         <select class="form-select" id="invite-role">
           <option value="admin">Admin — Full access</option>
@@ -1625,7 +1692,7 @@ tr:hover td{background:var(--maroon-pale)}
         </div>
       </div>
     </div>
-    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('addContribType')">Cancel</button><button class="btn btn-primary" onclick="saveContribType()">Add Type</button></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('addContribType')">Cancel</button><button class="btn btn-primary" id="contrib-save-btn" onclick="saveContribType()">Add Type</button></div>
   </div>
 </div>
 
@@ -1729,7 +1796,18 @@ async function init() {
 }
 
 async function loadProfileAndOrg() {
-  const { data: profile } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+  // If pending org from org code login, use that profile
+  let profile;
+  if (_pendingOrgId) {
+    const { data: p } = await sb.from('profiles').select('*')
+      .eq('id', currentUser.id).eq('org_id', _pendingOrgId).maybeSingle();
+    profile = p;
+    _pendingOrgId = null;
+  }
+  if (!profile) {
+    const { data: p } = await sb.from('profiles').select('*').eq('id', currentUser.id).single();
+    profile = p;
+  }
   currentProfile = profile;
   if (!profile) { showAuthScreen(); return; }
 
@@ -1895,6 +1973,7 @@ function showForgotPassword() {
 }
 
 // ── 2FA STATE ──
+let _pendingOrgId = null;
 let _2faCode = null;
 let _2faProfile = null;
 let _2faSession = null;
@@ -1902,12 +1981,39 @@ let _2faSession = null;
 async function signIn() {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
+  const orgCode = document.getElementById('login-org-code')?.value?.trim().toUpperCase();
   const errEl = document.getElementById('login-error');
   errEl.classList.remove('show');
   if (!email || !password) { errEl.textContent='Please enter email and password'; errEl.classList.add('show'); return; }
 
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) { errEl.textContent = error.message; errEl.classList.add('show'); return; }
+
+  // If org code provided, verify it matches and switch to that org
+  if (orgCode) {
+    const { data: org } = await sb.from('organisations')
+      .select('id,name').eq('org_code', orgCode).maybeSingle();
+    if (!org) {
+      await sb.auth.signOut();
+      errEl.textContent = `Organisation code "${orgCode}" not found. Check the code or leave blank if you are the admin.`;
+      errEl.classList.add('show');
+      return;
+    }
+    // Check if user has a profile in this org
+    const { data: orgProfile } = await sb.from('profiles')
+      .select('*').eq('id', data.user.id).eq('org_id', org.id).maybeSingle();
+    if (!orgProfile) {
+      // Create a member profile in this org
+      await sb.from('profiles').insert({
+        id: data.user.id,
+        org_id: org.id,
+        role: 'member',
+        full_name: data.user.user_metadata?.full_name || email.split('@')[0]
+      });
+    }
+    // Force this org context
+    _pendingOrgId = org.id;
+  }
 
   // Check if this user needs 2FA (admin roles)
   const { data: profile } = await sb.from('profiles').select('role,full_name,org_id').eq('id', data.user.id).single();
@@ -2060,8 +2166,11 @@ async function registerOrg() {
   if (authErr) { errEl.textContent = authErr.message; errEl.classList.add('show'); return; }
 
   // Create organisation
+  // Generate unique 6-digit org code
+  const orgCode = String(Math.floor(100000 + Math.random() * 900000));
+
   const { data: org, error: orgErr } = await sb.from('organisations')
-    .insert({ name: orgName, plan, status: 'active' })
+    .insert({ name: orgName, plan, status: 'active', org_code: orgCode })
     .select().single();
   if (orgErr) { errEl.textContent = 'Error creating organisation: ' + orgErr.message; errEl.classList.add('show'); return; }
 
@@ -2202,7 +2311,9 @@ function buildNav() {
       <button class="topbar-btn" onclick="showModal('addMember')">+ Add Member</button>`;
   } else {
     // member portal
-    topbar.innerHTML = `<span style="font-size:.75rem;color:var(--maroon);font-weight:600;padding:.4rem .75rem;background:var(--maroon-pale);border:1px solid var(--maroon-muted)">${currentOrg?.name||'My Organisation'}</span>`;
+    topbar.innerHTML = `
+      <span style="font-size:.75rem;color:var(--maroon);font-weight:600;padding:.4rem .75rem;background:var(--maroon-pale);border:1px solid var(--maroon-muted)">${currentOrg?.name||'My Organisation'}</span>
+      <button class="topbar-btn" onclick="showModal('memberPayment')" style="margin-left:.75rem">💳 Make Payment</button>`;
   }
 }
 
@@ -3195,6 +3306,7 @@ async function loadSettings() {
 
   const setVal = (id, val) => { const el = document.getElementById(id); if(el) el.value = val||'';}
   setVal('settings-name', currentOrg.name);
+  setVal('settings-org-code', currentOrg.org_code || 'Not set — contact support');
   setVal('settings-reg', currentOrg.reg_number);
   setVal('settings-paybill', currentOrg.paybill);
   setVal('settings-account', currentOrg.account_format);
@@ -3222,7 +3334,10 @@ async function loadSettings() {
         <td>Ksh ${t.is_variable?'Variable':Number(t.amount||0).toLocaleString()}</td>
         <td><span class="badge badge-grey">${t.frequency}</span></td>
         <td>${t.is_variable?'<span class="badge badge-maroon">Yes</span>':'No'}</td>
-        <td><button class="btn btn-danger btn-sm" onclick="deleteContribType('${t.id}','${t.name.replace(/'/g,"&apos;")}')">✕</button></td>
+        <td style="display:flex;gap:.4rem">
+          <button class="btn btn-secondary btn-sm" onclick="editContribType('${t.id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteContribType('${t.id}','${t.name.replace(/'/g,"&apos;")}')">✕</button>
+        </td>
       </tr>`).join('')}</tbody></table></div>
       <div style="padding:.75rem 1.25rem"><button class="btn btn-secondary btn-sm" onclick="showModal('addContribType')">+ Add Contribution Type</button></div>` :
       `<div style="padding:1.5rem;text-align:center">
@@ -3324,6 +3439,26 @@ async function saveSettings() {
   toast('Settings saved successfully');
 }
 
+let _editingContribTypeId = null;
+
+function editContribType(typeId) {
+  const type = allContribTypes.find(t => t.id === typeId);
+  if (!type) return;
+  _editingContribTypeId = typeId;
+  // Populate form
+  document.getElementById('ct-name').value = type.name || '';
+  document.getElementById('ct-amount').value = type.amount || '';
+  document.getElementById('ct-freq').value = type.frequency || 'monthly';
+  document.getElementById('ct-variable').value = type.is_variable ? 'true' : 'false';
+  document.getElementById('ct-notes').value = type.notes || '';
+  // Update modal title and button
+  const titleEl = document.getElementById('contrib-modal-title');
+  const btnEl = document.getElementById('contrib-save-btn');
+  if (titleEl) titleEl.textContent = 'Edit Contribution Type';
+  if (btnEl) btnEl.textContent = 'Save Changes';
+  showModal('addContribType');
+}
+
 async function saveContribType() {
   if (!currentOrg?.id) return;
   const payload = {
@@ -3334,11 +3469,29 @@ async function saveContribType() {
     is_variable: document.getElementById('ct-variable').value === 'true'
   };
   if (!payload.name) { toast('Please enter a type name'); return; }
-  const { error } = await sb.from('contribution_types').insert(payload);
+
+  let error;
+  if (_editingContribTypeId) {
+    // Update existing
+    const res = await sb.from('contribution_types').update(payload).eq('id', _editingContribTypeId);
+    error = res.error;
+    if (!error) toast(payload.name + ' updated successfully');
+  } else {
+    // Insert new
+    const res = await sb.from('contribution_types').insert(payload);
+    error = res.error;
+    if (!error) toast(payload.name + ' added as contribution type');
+  }
+
   if (error) { toast('Error: '+error.message); return; }
-  toast(payload.name + ' added as contribution type');
-  // Clear form
+
+  // Reset
+  _editingContribTypeId = null;
   ['ct-name','ct-amount','ct-notes'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const titleEl = document.getElementById('contrib-modal-title');
+  const btnEl = document.getElementById('contrib-save-btn');
+  if (titleEl) titleEl.textContent = 'Add Contribution Type';
+  if (btnEl) btnEl.textContent = 'Add Type';
   closeModal('addContribType');
   loadSettings();
   prefetchData();
@@ -3433,6 +3586,7 @@ function showModal(id) {
   if (!el) return;
   el.classList.add('open');
   if (id==='recordPayment'||id==='addMember'||id==='welfareEvent') populateSelects();
+  if (id==='memberPayment') openMemberPaymentModal();
 }
 function closeModal(id) { document.getElementById('modal-'+id)?.classList.remove('open'); }
 document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); }));
@@ -4845,6 +4999,144 @@ async function trackSmsUsage(orgId, messagesSent) {
   await sb.from('organisations')
     .update({ sms_used: (existing?.messages_sent||0) + messagesSent })
     .eq('id', orgId);
+}
+
+// ── MEMBER PAYMENT FUNCTIONS ──
+async function openMemberPaymentModal() {
+  showModal('memberPayment');
+  // Set paybill display
+  const paybillEl = document.getElementById('mp-modal-paybill');
+  if (paybillEl && currentOrg?.paybill) {
+    paybillEl.textContent = `Pay via M-Pesa Paybill: ${currentOrg.paybill} | Account: Your Full Name`;
+  }
+  // Set today's date
+  const dateEl = document.getElementById('mp-pay-date');
+  if (dateEl) dateEl.value = new Date().toISOString().split('T')[0];
+
+  // Load contribution types for this org
+  const { data: types } = await sb.from('contribution_types')
+    .select('*').eq('org_id', currentOrg.id).order('name');
+  const allocEl = document.getElementById('mp-allocations');
+  if (!allocEl) return;
+
+  if (!types?.length) {
+    allocEl.innerHTML = '<div style="color:var(--ink-faint);font-size:.82rem;padding:.5rem">No contribution types set up yet. Contact your admin.</div>';
+    return;
+  }
+
+  allocEl.innerHTML = types.map(t => `
+    <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1">
+        <div style="font-size:.85rem;font-weight:600;color:var(--ink)">${t.name}</div>
+        <div style="font-size:.7rem;color:var(--ink-faint)">${t.frequency}${t.amount && !t.is_variable ? ' · Ksh '+Number(t.amount).toLocaleString()+' suggested' : ' · Variable amount'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.4rem">
+        <span style="font-size:.8rem;color:var(--ink-faint)">Ksh</span>
+        <input type="number" class="form-input mp-alloc-input" data-type-id="${t.id}"
+          data-type-name="${t.name}" data-is-variable="${t.is_variable}"
+          style="width:110px;padding:.4rem .5rem;font-size:.85rem"
+          value="${t.is_variable ? '' : (t.amount || '')}"
+          placeholder="0"
+          oninput="updateAllocatedTotal()"/>
+      </div>
+    </div>`).join('');
+  updateAllocatedTotal();
+}
+
+function distributePayment(totalStr) {
+  const total = parseFloat(totalStr) || 0;
+  if (!total) { updateAllocatedTotal(); return; }
+  // Auto-fill fixed amounts, leave variable empty
+  const inputs = document.querySelectorAll('.mp-alloc-input');
+  let fixedTotal = 0;
+  inputs.forEach(inp => {
+    if (inp.dataset.isVariable !== 'true' && inp.value) {
+      fixedTotal += parseFloat(inp.value) || 0;
+    }
+  });
+  // Put remainder into first variable field if any
+  const remaining = total - fixedTotal;
+  const varInputs = [...inputs].filter(i => i.dataset.isVariable === 'true');
+  if (varInputs.length === 1 && remaining > 0) {
+    varInputs[0].value = remaining;
+  }
+  updateAllocatedTotal();
+}
+
+function updateAllocatedTotal() {
+  const inputs = document.querySelectorAll('.mp-alloc-input');
+  let total = 0;
+  inputs.forEach(inp => { total += parseFloat(inp.value) || 0; });
+  const totalEl = document.getElementById('mp-allocated-total');
+  if (totalEl) totalEl.textContent = 'Ksh ' + total.toLocaleString();
+  // Check against paid amount
+  const paid = parseFloat(document.getElementById('mp-total-amount')?.value) || 0;
+  const warnEl = document.getElementById('mp-allocation-warning');
+  if (warnEl) {
+    warnEl.style.display = (paid > 0 && Math.abs(total - paid) > 1) ? 'block' : 'none';
+  }
+}
+
+async function submitMemberPayment() {
+  const totalAmount = parseFloat(document.getElementById('mp-total-amount')?.value) || 0;
+  const mpesaRef = document.getElementById('mp-mpesa-ref')?.value?.trim();
+  const payDate = document.getElementById('mp-pay-date')?.value;
+  if (!totalAmount) { toast('Please enter the amount paid'); return; }
+  if (!mpesaRef) { toast('Please enter your M-Pesa reference'); return; }
+
+  const memberId = window._myMemberId;
+  if (!memberId) { toast('Your account is not linked to a member record. Contact your admin.'); return; }
+
+  const inputs = document.querySelectorAll('.mp-alloc-input');
+  const allocations = [];
+  inputs.forEach(inp => {
+    const amount = parseFloat(inp.value) || 0;
+    if (amount > 0) {
+      allocations.push({
+        typeId: inp.dataset.typeId,
+        typeName: inp.dataset.typeName,
+        amount
+      });
+    }
+  });
+
+  if (!allocations.length) { toast('Please allocate your payment to at least one category'); return; }
+
+  // Submit each allocation as a transaction
+  let successCount = 0;
+  for (const alloc of allocations) {
+    const { error } = await sb.from('transactions').insert({
+      org_id: currentOrg.id,
+      member_id: memberId,
+      type_id: alloc.typeId || null,
+      amount: alloc.amount,
+      mpesa_ref: mpesaRef,
+      transaction_date: payDate,
+      notes: `Self-recorded via member portal. Total paid: Ksh ${totalAmount.toLocaleString()}`,
+      recorded_by: memberId
+    });
+    if (!error) successCount++;
+    // Update member balance
+    if (!error) {
+      const { data: member } = await sb.from('members')
+        .select('shares_balance,savings_balance').eq('id', memberId).single();
+      if (member) {
+        const updates = {};
+        const name = alloc.typeName.toLowerCase();
+        if (name.includes('share')) updates.shares_balance = (member.shares_balance||0) + alloc.amount;
+        else if (name.includes('saving')) updates.savings_balance = (member.savings_balance||0) + alloc.amount;
+        if (Object.keys(updates).length) {
+          await sb.from('members').update(updates).eq('id', memberId);
+        }
+      }
+    }
+  }
+
+  toast(`✓ Payment recorded — ${successCount} transaction${successCount!==1?'s':''} saved. Your admin will verify.`);
+  closeModal('memberPayment');
+  // Refresh contributions page if open
+  loadMyContributions();
+  loadMyProfile();
 }
 
 // ── MEMBER MEETINGS ──
