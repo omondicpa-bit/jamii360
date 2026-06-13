@@ -416,6 +416,29 @@ tr:hover td{background:var(--maroon-pale)}
       </div>
     </div>
 
+    <!-- STEP 2FA: OTP VERIFICATION -->
+    <div id="auth-step-2fa" style="display:none">
+      <div style="text-align:center;margin-bottom:1.5rem">
+        <div style="font-size:2.5rem;margin-bottom:.5rem">🔐</div>
+        <div class="auth-title">Two-Factor Verification</div>
+        <div class="auth-sub" id="2fa-sub">Enter the 6-digit code sent to your email</div>
+      </div>
+      <div class="auth-error" id="2fa-error"></div>
+      <div class="auth-success" id="2fa-success"></div>
+      <div class="form-group">
+        <label class="form-label">Verification Code</label>
+        <input class="form-input" type="text" id="2fa-code"
+          placeholder="000000" maxlength="6"
+          style="font-size:1.8rem;text-align:center;letter-spacing:.5rem;font-weight:700"
+          oninput="this.value=this.value.replace(/[^0-9]/g,'')"/>
+      </div>
+      <button class="btn btn-primary" onclick="verify2FA()">Verify & Continue</button>
+      <div class="auth-footer" style="margin-top:1rem;display:flex;justify-content:space-between">
+        <a onclick="resend2FACode()">Resend code</a>
+        <a onclick="cancel2FA()">Cancel</a>
+      </div>
+    </div>
+
     <!-- STEP 2: SELECT ORG (for users with multiple orgs) -->
     <div id="auth-step-2" style="display:none">
       <div class="auth-title">Select Organisation</div>
@@ -826,6 +849,17 @@ tr:hover td{background:var(--maroon-pale)}
             </div>
             <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:.75rem 0 .5rem">SMS Integration</div>
             <div class="alert alert-info">&#8505; SMS is managed centrally by GroupYetu360. Your SMS bundle and usage are shown in <strong>Billing & SMS</strong>. Contact support to top up your SMS bundle.</div>
+            <div style="font-size:.78rem;font-weight:600;color:var(--ink);margin:.75rem 0 .5rem">Security</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:.75rem;background:var(--surface-2);border:1px solid var(--border)">
+              <div>
+                <div style="font-size:.82rem;font-weight:600;color:var(--ink)">Two-Factor Authentication (2FA)</div>
+                <div style="font-size:.72rem;color:var(--ink-faint);margin-top:.15rem">Require OTP verification for admin logins. Code sent via SMS.</div>
+              </div>
+              <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+                <input type="checkbox" id="settings-2fa" style="width:18px;height:18px;accent-color:var(--maroon)"/>
+                <span style="font-size:.78rem;font-weight:600" id="settings-2fa-label">Disabled</span>
+              </label>
+            </div>
             <div class="form-actions"><button class="btn btn-primary" onclick="saveSettings()">Save Changes</button></div>
           </div>
         </div>
@@ -1375,7 +1409,7 @@ tr:hover td{background:var(--maroon-pale)}
       <!-- Tabs -->
       <div class="tabs">
         <div class="tab active" onclick="switchTab(this,'md-tab-info')">Details</div>
-        <div class="tab" onclick="switchTab(this,'md-tab-adjust')">Debit / Credit</div>
+        <div class="tab" id="debit-credit-tab" onclick="switchTab(this,'md-tab-adjust')">Debit / Credit</div>
         <div class="tab" onclick="switchTab(this,'md-tab-history')">History</div>
       </div>
 
@@ -1522,11 +1556,13 @@ tr:hover td{background:var(--maroon-pale)}
       <div class="form-group"><label class="form-label">Role</label>
         <select class="form-select" id="invite-role">
           <option value="admin">Admin — Full access</option>
+          <option value="treasurer">Treasurer — Finance + debit/credit only</option>
           <option value="officer">Officer — Record transactions only</option>
         </select>
       </div>
       <div style="font-size:.72rem;color:var(--ink-faint);line-height:1.6;margin-top:.5rem">
-        <strong>Admin:</strong> Can manage members, finances, meetings, settings<br>
+        <strong>Admin:</strong> Full access — members, finance, meetings, settings<br>
+        <strong>Treasurer:</strong> Finance, expenses, debit/credit members only<br>
         <strong>Officer:</strong> Can record payments and attendance only
       </div>
     </div>
@@ -1851,6 +1887,144 @@ function showForgotPassword() {
   switchAuthTab('forgot');
 }
 
+// ── 2FA STATE ──
+let _2faCode = null;
+let _2faProfile = null;
+let _2faSession = null;
+
+async function signIn() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.remove('show');
+  if (!email || !password) { errEl.textContent='Please enter email and password'; errEl.classList.add('show'); return; }
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) { errEl.textContent = error.message; errEl.classList.add('show'); return; }
+
+  // Check if this user needs 2FA (admin roles)
+  const { data: profile } = await sb.from('profiles').select('role,full_name,org_id').eq('id', data.user.id).single();
+
+  const needs2FA = ['admin','treasurer','officer','superadmin'].includes(profile?.role);
+
+  if (needs2FA) {
+    // Check if org has 2FA enabled (or superadmin always has it)
+    let twoFAEnabled = profile?.role === 'superadmin';
+    if (!twoFAEnabled && profile?.org_id) {
+      const { data: org } = await sb.from('organisations').select('two_fa_enabled').eq('id', profile.org_id).single().catch(()=>({data:null}));
+      twoFAEnabled = org?.two_fa_enabled || false;
+    }
+
+    if (twoFAEnabled) {
+      // Sign out temporarily, show 2FA screen
+      _2faSession = data;
+      _2faProfile = profile;
+      await sb.auth.signOut();
+
+      // Generate and send OTP via Supabase magic link (use email OTP)
+      const otp = String(Math.floor(100000 + Math.random() * 900000));
+      _2faCode = otp;
+
+      // Send OTP via SMS if phone available, or show in toast for now
+      const { data: fullProfile } = await sb.from('profiles').select('phone').eq('id', data.user.id).single().catch(()=>({data:null}));
+
+      // Log OTP (in production this goes via SMS/email)
+      console.log('[2FA] OTP for', email, ':', otp);
+
+      // Try to send via SMS
+      try {
+        const { data: ps } = await sb.from('platform_settings').select('at_api_key,at_username').maybeSingle();
+        if (ps?.at_api_key && fullProfile?.phone) {
+          await fetch('https://eengldzvvgplgzvbutal.supabase.co/functions/v1/send-sms', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_KEY}` },
+            body: JSON.stringify({
+              username: ps.at_username || 'sandbox',
+              apiKey: ps.at_api_key,
+              to: [formatPhone(fullProfile.phone)],
+              message: `Your GroupYetu360 verification code is: ${otp}. Valid for 5 minutes.`
+            })
+          });
+        }
+      } catch(e) { console.log('2FA SMS failed:', e); }
+
+      // Show 2FA screen
+      document.getElementById('auth-step-1').style.display = 'none';
+      document.getElementById('auth-step-2fa').style.display = 'block';
+      document.getElementById('2fa-sub').textContent =
+        `Code sent to ${fullProfile?.phone ? '0***' + fullProfile.phone.slice(-3) : email}`;
+      document.getElementById('2fa-code').value = '';
+      document.getElementById('2fa-code').focus();
+
+      // Set 5 minute expiry
+      setTimeout(() => { _2faCode = null; }, 5 * 60 * 1000);
+      return;
+    }
+  }
+  // No 2FA needed - proceed normally (onAuthStateChange handles the rest)
+}
+
+async function verify2FA() {
+  const entered = document.getElementById('2fa-code').value.trim();
+  const errEl = document.getElementById('2fa-error');
+  errEl.classList.remove('show');
+
+  if (!entered || entered.length !== 6) {
+    errEl.textContent = 'Please enter the 6-digit code';
+    errEl.classList.add('show');
+    return;
+  }
+
+  if (!_2faCode) {
+    errEl.textContent = 'Code expired. Please sign in again.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  if (entered !== _2faCode) {
+    errEl.textContent = 'Incorrect code. Please try again.';
+    errEl.classList.add('show');
+    return;
+  }
+
+  // Code correct — sign back in
+  const loginEmail = document.getElementById('login-email').value.trim();
+  const loginPass = document.getElementById('login-password').value;
+
+  const { error } = await sb.auth.signInWithPassword({ email: loginEmail, password: loginPass });
+  if (error) {
+    errEl.textContent = 'Could not sign in: ' + error.message;
+    errEl.classList.add('show');
+    return;
+  }
+
+  // Reset 2FA state
+  _2faCode = null;
+  _2faProfile = null;
+  _2faSession = null;
+
+  // Hide 2FA screen
+  document.getElementById('auth-step-2fa').style.display = 'none';
+  document.getElementById('auth-step-1').style.display = 'block';
+}
+
+async function resend2FACode() {
+  _2faCode = null;
+  document.getElementById('2fa-success').textContent = 'Signing in again to resend code...';
+  document.getElementById('2fa-success').classList.add('show');
+  document.getElementById('auth-step-2fa').style.display = 'none';
+  document.getElementById('auth-step-1').style.display = 'block';
+  toast('Please sign in again to get a new code');
+}
+
+function cancel2FA() {
+  _2faCode = null;
+  _2faProfile = null;
+  _2faSession = null;
+  document.getElementById('auth-step-2fa').style.display = 'none';
+  document.getElementById('auth-step-1').style.display = 'block';
+}
+
 async function signIn() {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
@@ -1971,7 +2145,8 @@ function showApp() {
 function buildNav() {
   const role = currentProfile?.role || 'member';
   const isSuperAdmin = role === 'superadmin';
-  const isAdmin = role === 'admin' || role === 'officer' || isSuperAdmin;
+  const isAdmin = role === 'admin' || role === 'officer' || role === 'treasurer' || isSuperAdmin;
+  const isTreasurer = role === 'treasurer';
   let nav = '';
   if (!isSuperAdmin) {
     if (role === 'member') {
@@ -2444,8 +2619,14 @@ async function loadMeetings() {
   const role = currentProfile?.role;
   const adminBtn = document.getElementById('meetings-admin-btn');
   if (adminBtn) {
-    adminBtn.innerHTML = (role==='admin'||role==='officer') ?
-      '<button class="btn btn-primary" onclick="showModal(\'scheduleMeeting\')">+ Schedule Meeting</button>' : '';
+    const canSchedule = ['admin','officer','treasurer'].includes(role);
+    adminBtn.innerHTML = canSchedule ? `
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-secondary" onclick="sendMeetingReminders()" id="reminder-btn">
+          📱 Send Reminders
+        </button>
+        <button class="btn btn-primary" onclick="showModal('scheduleMeeting')">+ Schedule Meeting</button>
+      </div>` : '';
   }
   const today = new Date().toISOString().split('T')[0];
   const [upcomingRes, pastRes] = await Promise.all([
@@ -2512,6 +2693,115 @@ async function saveAttendance() {
   const { error } = await sb.from('attendance').upsert(records, { onConflict: 'meeting_id,member_id' });
   if (error) { toast('Error saving: ' + error.message); return; }
   toast('Attendance saved successfully');
+}
+
+async function sendMeetingReminders() {
+  const btn = document.getElementById('reminder-btn');
+  const statusEl = document.getElementById('meetings-reminder-status');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending...'; }
+
+  try {
+    // Get upcoming meetings in next 7 days
+    const today = new Date().toISOString().split('T')[0];
+    const nextWeek = new Date(Date.now() + 7*24*60*60*1000).toISOString().split('T')[0];
+    const { data: meetings } = await sb.from('meetings')
+      .select('*')
+      .eq('org_id', currentOrg.id)
+      .gte('meeting_date', today)
+      .lte('meeting_date', nextWeek)
+      .eq('status', 'scheduled');
+
+    if (!meetings?.length) {
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = '<div class="alert alert-info">No meetings scheduled in the next 7 days.</div>';
+      }
+      if (btn) { btn.disabled = false; btn.textContent = '📱 Send Reminders'; }
+      return;
+    }
+
+    // Get platform AT credentials
+    let atKey = null, atUser = 'sandbox', atSender = null;
+    try {
+      const { data: ps } = await sb.from('platform_settings')
+        .select('at_api_key,at_username,at_sender_id').maybeSingle();
+      if (ps?.at_api_key) {
+        atKey = ps.at_api_key;
+        atUser = ps.at_username || 'sandbox';
+        atSender = ps.at_sender_id;
+      }
+    } catch(e) {}
+
+    if (!atKey) {
+      if (statusEl) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = '<div class="alert alert-warn">SMS not configured. Contact GroupYetu360 support to activate SMS.</div>';
+      }
+      if (btn) { btn.disabled = false; btn.textContent = '📱 Send Reminders'; }
+      return;
+    }
+
+    // Send reminder for each upcoming meeting
+    let totalSent = 0;
+    for (const meeting of meetings) {
+      const meetDate = new Date(meeting.meeting_date).toDateString();
+      const message = `Dear Member, reminder: ${currentOrg.name} meeting is on ${meetDate} at ${meeting.meeting_time||'8:30 PM'} (${meeting.venue||'Online'}). Please be available. Regards, GroupYetu360.`;
+
+      // Get active members with phones
+      const phones = allMembers
+        .filter(m => m.phone && m.status === 'active')
+        .map(m => formatPhone(m.phone));
+
+      if (!phones.length) continue;
+
+      const res = await fetch('https://eengldzvvgplgzvbutal.supabase.co/functions/v1/send-sms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: JSON.stringify({
+          username: atUser,
+          apiKey: atKey,
+          to: phones,
+          message,
+          senderId: atSender
+        })
+      });
+
+      const result = await res.json();
+      const sent = result?.sent || 0;
+      totalSent += sent;
+
+      // Log it
+      await sb.from('messages_log').insert({
+        org_id: currentOrg.id,
+        recipient_type: 'meeting_reminder',
+        body: message,
+        recipient_count: sent,
+        sent_by: currentUser.id
+      });
+
+      // Track SMS usage
+      await trackSmsUsage(currentOrg.id, sent);
+    }
+
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.innerHTML = `<div class="alert alert-success">
+        ✓ Reminders sent to ${totalSent} members for ${meetings.length} upcoming meeting${meetings.length>1?'s':''}.
+      </div>`;
+      setTimeout(() => { statusEl.style.display = 'none'; }, 8000);
+    }
+
+  } catch(e) {
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.innerHTML = `<div class="alert alert-warn">Failed to send reminders: ${e.message}</div>`;
+    }
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = '📱 Send Reminders'; }
 }
 
 async function saveMeeting() {
@@ -2877,6 +3167,14 @@ async function loadSettings() {
   setVal('settings-account', currentOrg.account_format);
   setVal('settings-bank-balance', currentOrg.bank_balance||0);
   setVal('settings-bank-date', currentOrg.bank_balance_updated);
+  // Load 2FA setting
+  const twoFaEl = document.getElementById('settings-2fa');
+  const twoFaLabel = document.getElementById('settings-2fa-label');
+  if (twoFaEl) {
+    twoFaEl.checked = currentOrg?.two_fa_enabled || false;
+    if (twoFaLabel) twoFaLabel.textContent = twoFaEl.checked ? 'Enabled' : 'Disabled';
+    twoFaEl.onchange = () => { if(twoFaLabel) twoFaLabel.textContent = twoFaEl.checked ? 'Enabled' : 'Disabled'; };
+  }
 
 
   const { data } = await sb.from('contribution_types').select('*').eq('org_id', currentOrg.id).order('name');
@@ -2914,11 +3212,12 @@ async function loadTeamMembers() {
       <tbody>${team.map(p=>`<tr>
         <td><strong>${p.full_name||'—'}</strong></td>
         <td>${p.id}</td>
-        <td><span class="badge ${p.role==='admin'?'badge-maroon':p.role==='superadmin'?'badge-gold':'badge-grey'}">${p.role}</span></td>
+        <td><span class="badge ${p.role==='admin'?'badge-maroon':p.role==='superadmin'?'badge-gold':p.role==='treasurer'?'badge-green':'badge-grey'}">${p.role}</span></td>
         <td>
           ${p.role !== 'superadmin' && p.id !== currentUser?.id ? `
           <select class="form-select" style="width:120px;padding:.2rem .5rem;font-size:.72rem" onchange="changeRole('${p.id}',this.value)">
             <option value="admin" ${p.role==='admin'?'selected':''}>Admin</option>
+            <option value="treasurer" ${p.role==='treasurer'?'selected':''}>Treasurer</option>
             <option value="officer" ${p.role==='officer'?'selected':''}>Officer</option>
             <option value="member" ${p.role==='member'?'selected':''}>Member</option>
           </select>` : '<span style="font-size:.72rem;color:var(--ink-faint)">Current user</span>'}
@@ -2982,6 +3281,7 @@ async function saveSettings() {
     account_format: document.getElementById('settings-account').value.trim(),
     bank_balance: parseFloat(document.getElementById('settings-bank-balance').value)||0,
     bank_balance_updated: document.getElementById('settings-bank-date').value||null,
+    two_fa_enabled: document.getElementById('settings-2fa')?.checked || false,
     // AT credentials managed centrally by superadmin, not per-org
   };
   const { error } = await sb.from('organisations').update(updates).eq('id', currentOrg.id);
@@ -3286,6 +3586,12 @@ async function openMemberDetail(memberId) {
   document.getElementById('adj-date').value = today;
   // Load history
   loadMemberHistory(memberId);
+  // Hide debit/credit tab for officers (not admin or treasurer)
+  const dcTab = document.getElementById('debit-credit-tab');
+  if (dcTab) {
+    const canAdjust = ['admin','treasurer','superadmin'].includes(currentProfile?.role);
+    dcTab.style.display = canAdjust ? '' : 'none';
+  }
   showModal('memberDetail');
 }
 
