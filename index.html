@@ -2126,7 +2126,7 @@ async function sendPasswordReset() {
     return;
   }
   const { error } = await sb.auth.resetPasswordForEmail(email, {
-    redirectTo: 'https://omondicpa-bit.github.io/groupyetu360/'
+    redirectTo: 'https://groupyetu.org/'
   });
   if (error) {
     if (errEl) { errEl.textContent = error.message; errEl.classList.add('show'); }
@@ -5728,7 +5728,7 @@ start();
 // ── REGISTER SERVICE WORKER (PWA) ──
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/groupyetu360/sw.js')
+    navigator.serviceWorker.register('/sw.js')
       .then(reg => {
         console.log('[GY360] Service Worker registered:', reg.scope);
       })

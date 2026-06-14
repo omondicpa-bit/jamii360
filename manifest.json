@@ -2,8 +2,8 @@
   "name": "GroupYetu360 — Community Management",
   "short_name": "GY360",
   "description": "Community management platform for groups, chamas and welfare associations in Kenya",
-  "start_url": "/groupyetu360/",
-  "scope": "/groupyetu360/",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#5a0016",
@@ -21,23 +21,10 @@
     { "src": "icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ],
   "shortcuts": [
-    {
-      "name": "Dashboard",
-      "url": "/groupyetu360/#dashboard",
-      "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
-    },
-    {
-      "name": "Members",
-      "url": "/groupyetu360/#members",
-      "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
-    },
-    {
-      "name": "Finance",
-      "url": "/groupyetu360/#finance",
-      "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
-    }
+    { "name": "Dashboard", "url": "/", "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }] },
+    { "name": "Members", "url": "/#members", "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }] },
+    { "name": "Finance", "url": "/#finance", "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }] }
   ],
-  "screenshots": [],
   "related_applications": [],
   "prefer_related_applications": false
 }
