@@ -2886,6 +2886,9 @@ async function saveTransaction() {
       }
     }
   }
+  // Auto-update bank balance
+  const totalRecorded = parseFloat(document.getElementById('pay-amount')?.value)||0;
+  if (totalRecorded > 0) await updateBankBalance(currentOrg.id, totalRecorded, 'credit');
   toast('Payment recorded successfully');
   clearPayForm();
   loadFinance();
@@ -3201,12 +3204,37 @@ async function loadWelfare() {
   const { data } = await sb.from('welfare_events').select('*,members(full_name)').eq('org_id', currentOrg.id).order('created_at',{ascending:false});
   const events = data || [];
   document.getElementById('welfare-events-list').innerHTML = events.length ? events.map(e => `
-    <div class="welfare-card" style="margin-bottom:1rem">
-      <div style="font-size:.85rem;font-weight:700;color:var(--ink)">${e.event_type==='member'?'Member Death':e.event_type==='spouse'?'Spouse/Parent Death':'Child Death'}</div>
-      <div style="font-size:.72rem;color:var(--ink-faint);margin:.2rem 0">${e.members?.full_name||'Unknown member'} · ${e.event_date||'Date not set'}</div>
-      <div style="font-size:.8rem;color:var(--ink-soft)">Contribution per member: <strong>Ksh ${Number(e.contribution_per_member).toLocaleString()}</strong></div>
-      ${e.notes?`<div style="font-size:.78rem;color:var(--ink-faint);margin-top:.4rem">${e.notes}</div>`:''}
+    <div class="welfare-card" style="margin-bottom:.75rem;opacity:${e.is_active===false?'0.6':'1'}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <span style="font-size:.85rem;font-weight:700;color:var(--ink)">${e.event_type==='member'?'Member Death':e.event_type==='spouse'?'Spouse/Parent Death':'Child Death'}</span>
+            <span class="badge ${e.is_active===false?'badge-grey':'badge-green'}" style="font-size:.65rem">${e.is_active===false?'Closed':'Open'}</span>
+          </div>
+          <div style="font-size:.72rem;color:var(--ink-faint);margin:.2rem 0">${e.members?.full_name||'Unknown member'} · ${e.event_date||'Date not set'}</div>
+          <div style="font-size:.8rem;color:var(--ink-soft)">Contribution per member: <strong>Ksh ${Number(e.contribution_per_member).toLocaleString()}</strong></div>
+          ${e.notes?`<div style="font-size:.78rem;color:var(--ink-faint);margin-top:.3rem">${e.notes}</div>`:''}
+        </div>
+        <div style="display:flex;gap:.4rem;flex-shrink:0;margin-left:.75rem">
+          <button class="btn btn-secondary btn-sm" style="font-size:.7rem"
+            onclick="toggleWelfareActive('${e.id}',${e.is_active!==false})">
+            ${e.is_active===false?'Reopen':'Close'}
+          </button>
+        </div>
+      </div>
     </div>`).join('') : '<div style="padding:2rem;text-align:center;color:var(--ink-faint);font-size:.85rem">No welfare events recorded</div>';
+}
+
+async function toggleWelfareActive(id, isCurrentlyActive) {
+  const newState = !isCurrentlyActive;
+  await sb.from('welfare_events').update({ is_active: newState }).eq('id', id);
+  toast(newState ? '✓ Welfare event reopened — visible to members' : '✓ Welfare event closed — hidden from member payments');
+  await logActivity(
+    newState ? 'WELFARE REOPEN' : 'WELFARE CLOSE',
+    `Welfare event ${newState ? 'reopened' : 'closed'}`,
+    'welfare', id
+  );
+  loadWelfare();
 }
 
 async function saveWelfareEvent() {
@@ -4094,16 +4122,41 @@ async function unlockBankBalance() {
   toast('Bank balance unlocked for editing');
 }
 
+function toggleDarajaSection(plan) {
+  if (!plan) plan = document.getElementById('od-plan-select')?.value;
+  const section = document.getElementById('od-daraja-section');
+  if (section) section.style.display = ['standard','pro'].includes(plan) ? 'block' : 'none';
+}
+
 async function saveOrgDetail() {
   if (!currentDetailOrgId) return;
+  const plan = document.getElementById('od-plan-select')?.value;
+  const darajaKey = document.getElementById('od-daraja-key')?.value?.trim();
+  const darajaSecret = document.getElementById('od-daraja-secret')?.value?.trim();
+  const darajaPasskey = document.getElementById('od-daraja-passkey')?.value?.trim();
   const updates = {
     name: document.getElementById('od-name').value.trim(),
     reg_number: document.getElementById('od-reg').value.trim(),
     paybill: document.getElementById('od-paybill').value.trim(),
-    plan: document.getElementById('od-plan-select').value,
+    plan,
     status: document.getElementById('od-status-select').value,
     date_founded: document.getElementById('od-founded').value || null
   };
+  // Save Daraja credentials for Standard/Pro orgs
+  if (['standard','pro'].includes(plan)) {
+    const dk = document.getElementById('od-daraja-key')?.value?.trim();
+    const ds = document.getElementById('od-daraja-secret')?.value?.trim();
+    const dp = document.getElementById('od-daraja-passkey')?.value?.trim();
+    const dsc = document.getElementById('od-daraja-shortcode')?.value?.trim();
+    if (dk) updates.daraja_consumer_key = dk;
+    if (ds) updates.daraja_consumer_secret = ds;
+    if (dp) updates.daraja_passkey = dp;
+    if (dsc) updates.daraja_shortcode = dsc;
+    updates.daraja_env = document.getElementById('od-daraja-env')?.value || 'sandbox';
+    updates.daraja_enabled = document.getElementById('od-daraja-enabled')?.value === 'true';
+  } else {
+    updates.daraja_enabled = false;
+  }
   const { error } = await sb.from('organisations').update(updates).eq('id', currentDetailOrgId);
   if (error) { toast('Error: '+error.message); return; }
   toast('Organisation updated successfully');
@@ -4881,6 +4934,32 @@ async function updatePassword() {
   setTimeout(() => window.location.href = window.location.pathname, 2000);
 }
 
+// ── BANK BALANCE AUTO-UPDATE ──
+async function updateBankBalance(orgId, amount, direction) {
+  // direction: 'credit' for income, 'debit' for expense
+  try {
+    const { data: org } = await sb.from('organisations')
+      .select('bank_balance,bank_balance_locked')
+      .eq('id', orgId).single();
+    if (!org) return;
+    const current = parseFloat(org.bank_balance) || 0;
+    const change = parseFloat(amount) || 0;
+    const newBalance = direction === 'credit'
+      ? current + change
+      : current - change;
+    await sb.from('organisations').update({
+      bank_balance: Math.max(0, newBalance),
+      bank_balance_updated: new Date().toISOString().split('T')[0]
+    }).eq('id', orgId);
+    // Update local org object
+    if (currentOrg?.id === orgId) {
+      currentOrg.bank_balance = Math.max(0, newBalance);
+    }
+  } catch(e) {
+    console.log('Bank balance update skipped:', e.message);
+  }
+}
+
 // ── ACTIVITY LOG (Audit Trail) ──
 async function logActivity(action, details, targetType = null, targetId = null) {
   try {
@@ -5115,6 +5194,8 @@ async function initiateSTKPush() {
   if (statusEl) statusEl.style.display = 'none';
 
   try {
+    // Check if org has own Daraja or use platform Daraja
+    const useOrgDaraja = currentOrg?.daraja_enabled && currentOrg?.daraja_consumer_key;
     const res = await fetch('https://eengldzvvgplgzvbutal.supabase.co/functions/v1/daraja-stk', {
       method: 'POST',
       headers: {
@@ -5126,7 +5207,8 @@ async function initiateSTKPush() {
         amount,
         orgId: currentOrg.id,
         paymentType: type,
-        accountRef: `GY360-${currentOrg.id?.slice(0,8)}`
+        accountRef: `GY360-${currentOrg.id?.slice(0,8)}`,
+        useOrgCredentials: useOrgDaraja
       })
     });
 
@@ -5486,107 +5568,205 @@ async function trackSmsUsage(orgId, messagesSent) {
 
 // ── MEMBER PAYMENT FUNCTIONS ──
 async function openMemberPaymentModal() {
-  showModal('memberPayment');
-  // Set paybill display
-  const paybillEl = document.getElementById('mp-modal-paybill');
-  if (paybillEl && currentOrg?.paybill) {
-    paybillEl.textContent = `Pay via M-Pesa Paybill: ${currentOrg.paybill} | Account: Your Full Name`;
-  }
   // Set today's date
   const dateEl = document.getElementById('mp-pay-date');
   if (dateEl) dateEl.value = new Date().toISOString().split('T')[0];
+  document.getElementById('mp-grand-total').textContent = 'Ksh 0';
+  document.getElementById('mp-mpesa-ref').value = '';
 
-  // Load contribution types for this org
+  // Reset checkboxes
+  ['reg','contrib','welfare'].forEach(k => {
+    const cb = document.getElementById(`mp-check-${k}`);
+    const fields = document.getElementById(`mp-welfare-fields, #mp-${k}-fields`);
+    if (cb) cb.checked = false;
+    const f = document.getElementById(`mp-${k}-fields`);
+    if (f) f.style.display = 'none';
+  });
+
+  // Show payment details
+  const detailsBox = document.getElementById('mp-payment-details-box');
+  const methods = currentOrg?.payment_methods || {};
+  const paybillEl = document.getElementById('mp-modal-paybill');
+  const items = [];
+  if (methods.paybill && methods.paybill_number) {
+    items.push(`Paybill: <strong>${methods.paybill_number}</strong> A/C: ${methods.paybill_account||'Your Full Name'}`);
+  } else if (currentOrg?.paybill) {
+    items.push(`Paybill: <strong>${currentOrg.paybill}</strong> A/C: ${currentOrg.account_format||'Your Full Name'}`);
+  }
+  if (methods.till && methods.till_number) items.push(`Till: <strong>${methods.till_number}</strong>`);
+  if (methods.send && methods.send_phone) items.push(`Send Money: <strong>${methods.send_phone}</strong>`);
+  if (paybillEl) paybillEl.textContent = items.length ? 'Send payment to: ' + items[0].replace(/<[^>]+>/g,'') : 'See My Profile for payment details';
+  if (detailsBox) {
+    detailsBox.innerHTML = items.length ? `
+      <div style="background:var(--maroon-pale);border:1px solid var(--maroon-muted);padding:.75rem 1rem">
+        <div style="font-size:.72rem;font-weight:600;color:var(--maroon);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.06em">Send Payment To:</div>
+        ${items.map(i=>`<div style="font-size:.82rem;color:var(--ink)">${i}</div>`).join('')}
+      </div>` : '';
+  }
+
+  // Check if member is registered - show reg option if not
+  const memberId = window._myMemberId;
+  let myRecord = null;
+  if (memberId) {
+    const { data: m } = await sb.from('members').select('registration_paid,registration_renewal').eq('id', memberId).maybeSingle();
+    myRecord = m;
+  }
+  const showReg = !myRecord?.registration_paid ||
+    (myRecord?.registration_renewal && new Date(myRecord.registration_renewal) < new Date());
+  const regOption = document.getElementById('mp-option-reg');
+  if (regOption) regOption.style.display = showReg ? 'block' : 'none';
+
+  // Load contribution types (excluding registration and welfare types)
   const { data: types } = await sb.from('contribution_types')
     .select('*').eq('org_id', currentOrg.id).order('name');
-  const allocEl = document.getElementById('mp-allocations');
-  if (!allocEl) return;
-
-  if (!types?.length) {
-    allocEl.innerHTML = '<div style="color:var(--ink-faint);font-size:.82rem;padding:.5rem">No contribution types set up yet. Contact your admin.</div>';
-    return;
-  }
-
-  allocEl.innerHTML = types.map(t => `
-    <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--border)">
-      <div style="flex:1">
-        <div style="font-size:.85rem;font-weight:600;color:var(--ink)">${t.name}</div>
-        <div style="font-size:.7rem;color:var(--ink-faint)">${t.frequency}${t.amount && !t.is_variable ? ' · Ksh '+Number(t.amount).toLocaleString()+' suggested' : ' · Variable amount'}</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:.4rem">
-        <span style="font-size:.8rem;color:var(--ink-faint)">Ksh</span>
-        <input type="number" class="form-input mp-alloc-input" data-type-id="${t.id}"
-          data-type-name="${t.name}" data-is-variable="${t.is_variable}"
-          style="width:110px;padding:.4rem .5rem;font-size:.85rem"
-          value="${t.is_variable ? '' : (t.amount || '')}"
-          placeholder="0"
-          oninput="updateAllocatedTotal()"/>
-      </div>
-    </div>`).join('');
-  updateAllocatedTotal();
-}
-
-function distributePayment(totalStr) {
-  const total = parseFloat(totalStr) || 0;
-  if (!total) { updateAllocatedTotal(); return; }
-  // Auto-fill fixed amounts, leave variable empty
-  const inputs = document.querySelectorAll('.mp-alloc-input');
-  let fixedTotal = 0;
-  inputs.forEach(inp => {
-    if (inp.dataset.isVariable !== 'true' && inp.value) {
-      fixedTotal += parseFloat(inp.value) || 0;
+  const contribEl = document.getElementById('mp-contrib-list');
+  const regType = types?.find(t => t.name.toLowerCase().includes('registration'));
+  if (contribEl) {
+    const contribTypes = (types||[]).filter(t =>
+      !t.name.toLowerCase().includes('registration') &&
+      !t.name.toLowerCase().includes('welfare')
+    );
+    if (contribTypes.length) {
+      contribEl.innerHTML = contribTypes.map(t => `
+        <div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 0;border-bottom:1px solid var(--border)">
+          <input type="checkbox" class="mp-contrib-check" data-type-id="${t.id}" data-type-name="${t.name}"
+            style="width:16px;height:16px;accent-color:var(--maroon);flex-shrink:0"
+            onchange="toggleContribItem(this)"/>
+          <div style="flex:1">
+            <div style="font-size:.82rem;font-weight:600">${t.name}</div>
+            <div style="font-size:.68rem;color:var(--ink-faint)">${t.is_variable ? 'Variable amount' : 'Ksh '+Number(t.amount||0).toLocaleString()+' suggested'}</div>
+          </div>
+          <input type="number" class="form-input mp-item-input" data-type-id="${t.id}" data-type-name="${t.name}"
+            id="mp-contrib-amt-${t.id}"
+            style="width:100px;padding:.35rem .5rem;font-size:.82rem;display:none"
+            value="${!t.is_variable && t.amount ? t.amount : ''}"
+            placeholder="Amount"
+            oninput="updateMpTotal()"/>
+        </div>`).join('');
+    } else {
+      contribEl.innerHTML = '<div style="font-size:.78rem;color:var(--ink-faint);padding:.5rem 0">No contribution types set. Contact your admin.</div>';
     }
-  });
-  // Put remainder into first variable field if any
-  const remaining = total - fixedTotal;
-  const varInputs = [...inputs].filter(i => i.dataset.isVariable === 'true');
-  if (varInputs.length === 1 && remaining > 0) {
-    varInputs[0].value = remaining;
   }
-  updateAllocatedTotal();
+
+  // Load reg fee amount
+  const regLabel = document.getElementById('mp-reg-fee-label');
+  const regAmtInput = document.getElementById('mp-reg-amount');
+  if (regType) {
+    if (regLabel) regLabel.textContent = `Ksh ${Number(regType.amount||0).toLocaleString()}`;
+    if (regAmtInput) { regAmtInput.value = regType.amount||''; regAmtInput.dataset.typeId = regType.id; regAmtInput.dataset.typeName = regType.name; }
+  }
+
+  // Load active welfare events
+  const { data: welfare } = await sb.from('welfare_events')
+    .select('*').eq('org_id', currentOrg.id).eq('is_active', true).order('event_date', {ascending:false});
+  const welfareOption = document.getElementById('mp-option-welfare');
+  const welfareList = document.getElementById('mp-welfare-list');
+  if (welfareOption) welfareOption.style.display = welfare?.length ? 'block' : 'none';
+  if (welfareList && welfare?.length) {
+    welfareList.innerHTML = welfare.map(w => `
+      <div style="display:flex;align-items:center;gap:.75rem;padding:.5rem 0;border-bottom:1px solid var(--border)">
+        <input type="checkbox" class="mp-welfare-check" data-event-id="${w.id}" data-event-name="${w.event_type} — ${w.member_name||w.description||''}"
+          style="width:16px;height:16px;accent-color:var(--maroon);flex-shrink:0"
+          onchange="toggleWelfareItem(this)"/>
+        <div style="flex:1">
+          <div style="font-size:.82rem;font-weight:600">${w.event_type}</div>
+          <div style="font-size:.68rem;color:var(--ink-faint)">${w.member_name||w.description||''} ${w.amount_per_member ? '· Ksh '+Number(w.amount_per_member).toLocaleString()+' per member' : ''}</div>
+        </div>
+        <input type="number" class="form-input mp-item-input" data-event-id="${w.id}" data-event-name="${w.event_type}"
+          id="mp-welfare-amt-${w.id}"
+          style="width:100px;padding:.35rem .5rem;font-size:.82rem;display:none"
+          value="${w.amount_per_member||''}"
+          placeholder="Amount"
+          oninput="updateMpTotal()"/>
+      </div>`).join('');
+  }
+
+  updateMpTotal();
 }
 
-function updateAllocatedTotal() {
-  const inputs = document.querySelectorAll('.mp-alloc-input');
-  let total = 0;
-  inputs.forEach(inp => { total += parseFloat(inp.value) || 0; });
-  const totalEl = document.getElementById('mp-allocated-total');
-  if (totalEl) totalEl.textContent = 'Ksh ' + total.toLocaleString();
-  // Check against paid amount
-  const paid = parseFloat(document.getElementById('mp-total-amount')?.value) || 0;
-  const warnEl = document.getElementById('mp-allocation-warning');
-  if (warnEl) {
-    warnEl.style.display = (paid > 0 && Math.abs(total - paid) > 1) ? 'block' : 'none';
-  }
+function togglePayOption(key) {
+  const cb = document.getElementById(`mp-check-${key}`);
+  const fields = document.getElementById(`mp-${key}-fields`);
+  if (!cb || !fields) return;
+  setTimeout(() => {
+    fields.style.display = cb.checked ? 'block' : 'none';
+    if (!cb.checked) {
+      // Clear amounts when unchecked
+      fields.querySelectorAll('.mp-item-input').forEach(i => { i.value=''; i.style.display='none'; });
+      fields.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false);
+      if (key === 'reg') { const a = document.getElementById('mp-reg-amount'); if(a) a.value=''; }
+    }
+    updateMpTotal();
+  }, 0);
 }
+
+function toggleContribItem(cb) {
+  const amtInput = document.getElementById(`mp-contrib-amt-${cb.dataset.typeId}`);
+  if (amtInput) amtInput.style.display = cb.checked ? 'block' : 'none';
+  if (!cb.checked && amtInput) amtInput.value = '';
+  updateMpTotal();
+}
+
+function toggleWelfareItem(cb) {
+  const amtInput = document.getElementById(`mp-welfare-amt-${cb.dataset.eventId}`);
+  if (amtInput) amtInput.style.display = cb.checked ? 'block' : 'none';
+  if (!cb.checked && amtInput) amtInput.value = '';
+  updateMpTotal();
+}
+
+function updateMpTotal() {
+  let total = 0;
+  document.querySelectorAll('.mp-item-input').forEach(inp => {
+    total += parseFloat(inp.value)||0;
+  });
+  const regAmt = document.getElementById('mp-reg-amount');
+  if (regAmt && document.getElementById('mp-check-reg')?.checked) {
+    total += parseFloat(regAmt.value)||0;
+  }
+  const el = document.getElementById('mp-grand-total');
+  if (el) el.textContent = 'Ksh ' + total.toLocaleString();
+}
+
+function distributePayment(v) { updateMpTotal(); }
+function updateAllocatedTotal() { updateMpTotal(); }
 
 async function submitMemberPayment() {
-  const totalAmount = parseFloat(document.getElementById('mp-total-amount')?.value) || 0;
   const mpesaRef = document.getElementById('mp-mpesa-ref')?.value?.trim();
   const payDate = document.getElementById('mp-pay-date')?.value;
-  if (!totalAmount) { toast('Please enter the amount paid'); return; }
-  if (!mpesaRef) { toast('Please enter your M-Pesa reference'); return; }
+  if (!mpesaRef) { toast('Please enter your M-Pesa reference number'); return; }
 
   const memberId = window._myMemberId;
   if (!memberId) { toast('Your account is not linked to a member record. Contact your admin.'); return; }
 
-  const inputs = document.querySelectorAll('.mp-alloc-input');
+  // Collect all checked items
   const allocations = [];
-  inputs.forEach(inp => {
-    const amount = parseFloat(inp.value) || 0;
-    if (amount > 0) {
-      allocations.push({
-        typeId: inp.dataset.typeId,
-        typeName: inp.dataset.typeName,
-        amount
-      });
-    }
+
+  // Registration
+  if (document.getElementById('mp-check-reg')?.checked) {
+    const amt = parseFloat(document.getElementById('mp-reg-amount')?.value)||0;
+    const typeId = document.getElementById('mp-reg-amount')?.dataset?.typeId;
+    if (amt > 0) allocations.push({ typeId, typeName: 'Registration Fee', amount: amt, isReg: true });
+  }
+
+  // Contributions
+  document.querySelectorAll('.mp-contrib-check:checked').forEach(cb => {
+    const amtInput = document.getElementById(`mp-contrib-amt-${cb.dataset.typeId}`);
+    const amt = parseFloat(amtInput?.value)||0;
+    if (amt > 0) allocations.push({ typeId: cb.dataset.typeId, typeName: cb.dataset.typeName, amount: amt });
   });
 
-  if (!allocations.length) { toast('Please allocate your payment to at least one category'); return; }
+  // Welfare
+  document.querySelectorAll('.mp-welfare-check:checked').forEach(cb => {
+    const amtInput = document.getElementById(`mp-welfare-amt-${cb.dataset.eventId}`);
+    const amt = parseFloat(amtInput?.value)||0;
+    if (amt > 0) allocations.push({ eventId: cb.dataset.eventId, typeName: cb.dataset.eventName, amount: amt, isWelfare: true });
+  });
 
-  // Submit each allocation as a transaction
+  if (!allocations.length) { toast('Please select at least one payment category and enter an amount'); return; }
+
+  const grandTotal = allocations.reduce((s,a)=>s+a.amount,0);
   let successCount = 0;
+
   for (const alloc of allocations) {
     const { error } = await sb.from('transactions').insert({
       org_id: currentOrg.id,
@@ -5595,29 +5775,26 @@ async function submitMemberPayment() {
       amount: alloc.amount,
       mpesa_ref: mpesaRef,
       transaction_date: payDate,
-      notes: `Self-recorded via member portal. Total paid: Ksh ${totalAmount.toLocaleString()}`,
+      notes: `Self-recorded via member portal. Total: Ksh ${grandTotal.toLocaleString()}${alloc.isWelfare ? ' (Welfare)' : ''}${alloc.isReg ? ' (Registration)' : ''}`,
       recorded_by: memberId
     });
-    if (!error) successCount++;
-    // Update member balance
     if (!error) {
-      const { data: member } = await sb.from('members')
-        .select('shares_balance,savings_balance').eq('id', memberId).single();
+      successCount++;
+      // Update balances
+      const { data: member } = await sb.from('members').select('shares_balance,savings_balance,registration_paid').eq('id', memberId).single();
       if (member) {
         const updates = {};
         const name = alloc.typeName.toLowerCase();
         if (name.includes('share')) updates.shares_balance = (member.shares_balance||0) + alloc.amount;
         else if (name.includes('saving')) updates.savings_balance = (member.savings_balance||0) + alloc.amount;
-        if (Object.keys(updates).length) {
-          await sb.from('members').update(updates).eq('id', memberId);
-        }
+        if (alloc.isReg) updates.registration_paid = true;
+        if (Object.keys(updates).length) await sb.from('members').update(updates).eq('id', memberId);
       }
     }
   }
 
-  toast(`✓ Payment recorded — ${successCount} transaction${successCount!==1?'s':''} saved. Your admin will verify.`);
+  toast(`✓ Payment submitted — ${successCount} transaction${successCount!==1?'s':''} recorded. Ksh ${grandTotal.toLocaleString()} total. Your admin will verify.`);
   closeModal('memberPayment');
-  // Refresh contributions page if open
   loadMyContributions();
   loadMyProfile();
 }
