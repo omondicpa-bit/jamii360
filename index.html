@@ -2909,6 +2909,7 @@ async function saveModalTransaction() {
   if (!payload.amount) { toast('Please enter an amount'); return; }
   const { error } = await sb.from('transactions').insert(payload);
   if (error) { toast('Error: ' + error.message); return; }
+  await updateBankBalance(currentOrg.id, payload.amount, 'credit');
   toast('Payment recorded');
   closeModal('recordPayment');
   loadFinance(); loadDashboard();
@@ -2932,9 +2933,11 @@ async function saveIncome() {
   if (!payload.amount||!payload.category) { toast('Please enter category and amount'); return; }
   const { error } = await sb.from('expenses').insert(payload);
   if (error) { toast('Error: '+error.message); return; }
+  await updateBankBalance(currentOrg.id, payload.amount, 'credit');
   toast('Income recorded successfully');
   clearIncForm();
   loadFinance();
+  loadDashboard();
 }
 
 function clearIncForm() {
@@ -2974,8 +2977,10 @@ async function saveExpense() {
       entry_type: 'expense'
     });
   }
+  const totalExpense = payload.amount + charges;
+  await updateBankBalance(currentOrg.id, totalExpense, 'debit');
   toast('Expense recorded' + (charges > 0 ? ` + Ksh ${charges} charges` : ''));
-  clearExpForm(); loadFinance();
+  clearExpForm(); loadFinance(); loadDashboard();
 }
 
 function clearPayForm() { ['pay-member','pay-type','pay-amount','pay-ref','pay-notes'].forEach(id=>{ const el=document.getElementById(id); if(el)el.value=''; }); }
@@ -5979,14 +5984,4 @@ async function installPWA() {
 
 function dismissInstallBanner() {
   localStorage.setItem('pwa-dismissed', '1');
-  document.getElementById('pwa-install-banner')?.remove();
-}
-
-window.addEventListener('appinstalled', () => {
-  console.log('[GY360] App installed successfully');
-  document.getElementById('pwa-install-banner')?.remove();
-  toast('GroupYetu360 installed! Find it on your home screen.');
-});
-</script>
-</body>
-</html>
+  document.getElementById('pwa-
