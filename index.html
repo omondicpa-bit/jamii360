@@ -1658,21 +1658,17 @@ tr:hover td{background:var(--maroon-pale)}
     <div class="modal-header">
       <div>
         <div class="modal-title">Make a Payment</div>
-        <div style="font-size:.72rem;color:var(--ink-faint);margin-top:.15rem" id="mp-modal-paybill">Pay via M-Pesa Paybill: —</div>
+        <div style="font-size:.72rem;color:var(--ink-faint);margin-top:.15rem" id="mp-modal-paybill">Loading payment details…</div>
       </div>
       <button class="modal-close" onclick="closeModal('memberPayment')">✕</button>
     </div>
-    <div class="modal-body">
-      <!-- Step 1: Enter total amount -->
-      <div id="mp-step-1">
-        <div class="alert alert-info" style="margin-bottom:1rem">
-          ℹ Enter the total amount you are paying via M-Pesa, then allocate it across payment categories below.
-        </div>
-        <div class="form-group">
-          <label class="form-label">Total Amount Paid (Ksh)</label>
-          <input class="form-input" type="number" id="mp-total-amount"
-            placeholder="e.g. 1200" oninput="distributePayment(this.value)"/>
-        </div>
+    <div class="modal-body" style="padding-bottom:.5rem">
+
+      <!-- Payment details box -->
+      <div id="mp-payment-details-box" style="margin-bottom:1rem"></div>
+
+      <!-- M-Pesa ref + date -->
+      <div class="form-row">
         <div class="form-group">
           <label class="form-label">M-Pesa Reference</label>
           <input class="form-input" id="mp-mpesa-ref" placeholder="e.g. QBC4X8YZDE"/>
@@ -1681,26 +1677,68 @@ tr:hover td{background:var(--maroon-pale)}
           <label class="form-label">Payment Date</label>
           <input class="form-input" type="date" id="mp-pay-date"/>
         </div>
+      </div>
 
-        <!-- Allocation section -->
-        <div style="font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:.75rem 0 .5rem">Allocate Payment</div>
-        <div id="mp-allocations">
-          <div class="loading"><div class="spinner"></div>Loading contribution types...</div>
-        </div>
+      <div style="font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:.5rem 0 .75rem;border-top:1px solid var(--border);padding-top:.75rem">What are you paying for?</div>
 
-        <!-- Running total -->
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:.75rem;background:var(--surface-2);border:1px solid var(--border);margin-top:.75rem">
-          <span style="font-size:.82rem;color:var(--ink-faint)">Total Allocated:</span>
-          <span id="mp-allocated-total" style="font-size:1rem;font-weight:700;color:var(--maroon)">Ksh 0</span>
-        </div>
-        <div id="mp-allocation-warning" style="display:none;font-size:.72rem;color:var(--danger);margin-top:.3rem">
-          ⚠ Allocated amount doesn't match total paid
+      <!-- SECTION 1: Registration Fee -->
+      <div id="mp-option-reg" style="display:none;margin-bottom:.5rem">
+        <label style="display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;background:var(--surface-2);border:1px solid var(--border);cursor:pointer;user-select:none">
+          <input type="checkbox" id="mp-check-reg" style="width:16px;height:16px;accent-color:var(--maroon);flex-shrink:0" onchange="togglePayOption('reg')"/>
+          <div style="flex:1">
+            <div style="font-size:.85rem;font-weight:600">📋 Pay Registration Fee</div>
+            <div style="font-size:.68rem;color:var(--ink-faint)" id="mp-reg-fee-label">Registration fee</div>
+          </div>
+        </label>
+        <div id="mp-reg-fields" style="display:none;padding:.5rem .75rem .25rem;border:1px solid var(--border);border-top:none;background:var(--surface)">
+          <div style="display:flex;align-items:center;gap:.75rem;padding:.35rem 0">
+            <div style="flex:1;font-size:.82rem;color:var(--ink)">Registration Fee</div>
+            <input type="number" class="form-input mp-item-input" id="mp-reg-amount"
+              style="width:110px;padding:.35rem .5rem;font-size:.82rem"
+              placeholder="Amount" oninput="updateMpTotal()"/>
+          </div>
         </div>
       </div>
+
+      <!-- SECTION 2: Contributions -->
+      <div style="margin-bottom:.5rem">
+        <label style="display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;background:var(--surface-2);border:1px solid var(--border);cursor:pointer;user-select:none">
+          <input type="checkbox" id="mp-check-contrib" style="width:16px;height:16px;accent-color:var(--maroon);flex-shrink:0" onchange="togglePayOption('contrib')"/>
+          <div style="flex:1">
+            <div style="font-size:.85rem;font-weight:600">💰 Pay Contributions</div>
+            <div style="font-size:.68rem;color:var(--ink-faint)">Monthly savings, shares, or other contributions</div>
+          </div>
+        </label>
+        <div id="mp-contrib-fields" style="display:none;padding:.25rem .75rem .25rem;border:1px solid var(--border);border-top:none;background:var(--surface)">
+          <div id="mp-contrib-list"><div class="loading"><div class="spinner"></div></div></div>
+        </div>
+      </div>
+
+      <!-- SECTION 3: Welfare -->
+      <div id="mp-option-welfare" style="display:none;margin-bottom:.5rem">
+        <label style="display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;background:var(--surface-2);border:1px solid var(--border);cursor:pointer;user-select:none">
+          <input type="checkbox" id="mp-check-welfare" style="width:16px;height:16px;accent-color:var(--maroon);flex-shrink:0" onchange="togglePayOption('welfare')"/>
+          <div style="flex:1">
+            <div style="font-size:.85rem;font-weight:600">❤️ Pay Welfare</div>
+            <div style="font-size:.68rem;color:var(--ink-faint)">Active welfare contributions</div>
+          </div>
+        </label>
+        <div id="mp-welfare-fields" style="display:none;padding:.25rem .75rem .25rem;border:1px solid var(--border);border-top:none;background:var(--surface)">
+          <div id="mp-welfare-list"></div>
+        </div>
+      </div>
+
+      <!-- Grand total -->
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.75rem 1rem;background:var(--maroon-pale);border:1px solid var(--maroon-muted);margin-top:.75rem">
+        <span style="font-size:.85rem;font-weight:600;color:var(--maroon)">Total to Pay:</span>
+        <span id="mp-grand-total" style="font-size:1.1rem;font-weight:700;color:var(--maroon)">Ksh 0</span>
+      </div>
+      <div style="font-size:.68rem;color:var(--ink-faint);margin-top:.4rem">Send this exact amount via M-Pesa to the details above, then enter the reference number.</div>
+
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('memberPayment')">Cancel</button>
-      <button class="btn btn-primary" onclick="submitMemberPayment()">Submit Payment</button>
+      <button class="btn btn-primary" onclick="submitMemberPayment()">Confirm Payment</button>
     </div>
   </div>
 </div>
@@ -1889,7 +1927,7 @@ tr:hover td{background:var(--maroon-pale)}
       <div class="form-row">
         <div class="form-group"><label class="form-label">Paybill</label><input class="form-input" id="od-paybill"/></div>
         <div class="form-group"><label class="form-label">Plan</label>
-          <select class="form-select" id="od-plan-select">
+          <select class="form-select" id="od-plan-select" onchange="toggleDarajaSection(this.value)">
             <option value="starter">Starter (Free)</option>
             <option value="basic">Basic (Ksh 3,000)</option>
             <option value="standard">Standard (Ksh 6,000)</option>
@@ -1907,7 +1945,37 @@ tr:hover td{background:var(--maroon-pale)}
         </div>
         <div class="form-group"><label class="form-label">Date Founded</label><input class="form-input" type="date" id="od-founded"/></div>
       </div>
-      <div class="card" style="margin-top:.5rem;margin-bottom:0">
+      <!-- M-Pesa Daraja — Standard/Pro only -->
+      <div id="od-daraja-section" style="display:none;margin-top:.75rem;border:1px solid var(--maroon-muted);background:var(--maroon-pale);padding:1rem">
+        <div style="font-size:.78rem;font-weight:700;color:var(--maroon);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.06em">📱 M-Pesa Daraja Integration</div>
+        <div style="font-size:.72rem;color:var(--ink-faint);margin-bottom:.75rem">Enter this organisation's Daraja credentials from <strong>developer.safaricom.co.ke</strong>. Members will see an STK Push option when paying.</div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Consumer Key</label><input class="form-input" type="password" id="od-daraja-key" placeholder="From Daraja portal"/></div>
+          <div class="form-group"><label class="form-label">Consumer Secret</label><input class="form-input" type="password" id="od-daraja-secret" placeholder="From Daraja portal"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label class="form-label">Business Short Code</label><input class="form-input" id="od-daraja-shortcode" placeholder="Paybill or Till number"/></div>
+          <div class="form-group"><label class="form-label">Passkey</label><input class="form-input" type="password" id="od-daraja-passkey" placeholder="From Daraja portal"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Environment</label>
+            <select class="form-select" id="od-daraja-env">
+              <option value="sandbox">Sandbox (Testing)</option>
+              <option value="production">Production (Live)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">STK Push for Members</label>
+            <select class="form-select" id="od-daraja-enabled">
+              <option value="false">Disabled — members pay manually</option>
+              <option value="true">Enabled — members get STK Push</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:.75rem;margin-bottom:0">
         <div class="card-header"><div class="card-title">Members</div></div>
         <div class="table-wrap" style="max-height:220px;overflow-y:auto">
           <table>
@@ -1918,7 +1986,10 @@ tr:hover td{background:var(--maroon-pale)}
       </div>
     </div>
     <div class="modal-footer" style="justify-content:space-between">
-      <button class="btn btn-danger btn-sm" onclick="deleteOrg()">🗑 Delete Organisation</button>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-danger btn-sm" onclick="deleteOrg()">🗑 Delete Organisation</button>
+        <button class="btn btn-secondary btn-sm" onclick="unlockBankBalance()">🔓 Unlock Bank Balance</button>
+      </div>
       <div style="display:flex;gap:.75rem">
         <button class="btn btn-secondary" onclick="closeModal('orgDetail')">Cancel</button>
         <button class="btn btn-primary" onclick="saveOrgDetail()">Save Changes</button>
@@ -4117,6 +4188,16 @@ async function openOrgDetail(orgId) {
       <td>Ksh ${m.savings_tier?.toLocaleString()||'—'}/mo</td>
       <td><span class="badge ${m.status==='active'?'badge-green':m.status==='arrears'?'badge-warn':'badge-grey'}">${m.status}</span></td>
     </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:1rem;color:var(--ink-faint)">No members yet</td></tr>';
+  // Populate & show Daraja section for Standard/Pro
+  toggleDarajaSection(org.plan);
+  const setOdVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  setOdVal('od-daraja-key', org.daraja_consumer_key || '');
+  setOdVal('od-daraja-secret', org.daraja_consumer_secret || '');
+  setOdVal('od-daraja-shortcode', org.daraja_shortcode || '');
+  setOdVal('od-daraja-passkey', org.daraja_passkey || '');
+  setOdVal('od-daraja-env', org.daraja_env || 'sandbox');
+  const darajaEnabledEl = document.getElementById('od-daraja-enabled');
+  if (darajaEnabledEl) darajaEnabledEl.value = org.daraja_enabled ? 'true' : 'false';
   showModal('orgDetail');
 }
 
@@ -5582,7 +5663,6 @@ async function openMemberPaymentModal() {
   // Reset checkboxes
   ['reg','contrib','welfare'].forEach(k => {
     const cb = document.getElementById(`mp-check-${k}`);
-    const fields = document.getElementById(`mp-welfare-fields, #mp-${k}-fields`);
     if (cb) cb.checked = false;
     const f = document.getElementById(`mp-${k}-fields`);
     if (f) f.style.display = 'none';
@@ -5984,4 +6064,14 @@ async function installPWA() {
 
 function dismissInstallBanner() {
   localStorage.setItem('pwa-dismissed', '1');
-  document.getElementById('pwa-
+  document.getElementById('pwa-install-banner')?.remove();
+}
+
+window.addEventListener('appinstalled', () => {
+  console.log('[GY360] App installed successfully');
+  document.getElementById('pwa-install-banner')?.remove();
+  toast('GroupYetu360 installed! Find it on your home screen.');
+});
+</script>
+</body>
+</html>
