@@ -624,11 +624,30 @@ tr:hover td{background:var(--maroon-pale)}
         <div class="tab" onclick="switchTab(this,'tab-expense-record')">Record Expense</div>
       </div>
       <div class="tab-panel active" id="tab-transactions">
+        <!-- Row 1: Inflows/outflows -->
         <div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
-          <div class="stat-card"><div class="stat-label">Total Contributions</div><div class="stat-value" id="fin-total-contrib" style="font-size:1.2rem">—</div></div>
-          <div class="stat-card green"><div class="stat-label">Total Income</div><div class="stat-value" id="fin-total-income" style="font-size:1.2rem">—</div></div>
-          <div class="stat-card warn"><div class="stat-label">Total Expenses</div><div class="stat-value" id="fin-total-exp" style="font-size:1.2rem">—</div></div>
-          <div class="stat-card gold"><div class="stat-label">Net Position</div><div class="stat-value" id="fin-net" style="font-size:1.2rem">—</div></div>
+          <div class="stat-card"><div class="stat-label">Member Contributions</div><div class="stat-value" id="fin-total-contrib" style="font-size:1.2rem">—</div><div class="stat-meta">Payments recorded</div></div>
+          <div class="stat-card green"><div class="stat-label">Other Income</div><div class="stat-value" id="fin-total-income" style="font-size:1.2rem">—</div><div class="stat-meta">Harvests, grants etc.</div></div>
+          <div class="stat-card warn"><div class="stat-label">Total Expenses</div><div class="stat-value" id="fin-total-exp" style="font-size:1.2rem">—</div><div class="stat-meta">Outflows</div></div>
+          <div class="stat-card gold"><div class="stat-label">Net Position</div><div class="stat-value" id="fin-net" style="font-size:1.2rem">—</div><div class="stat-meta">Surplus / Deficit</div></div>
+        </div>
+        <!-- Row 2: Balance breakdown -->
+        <div class="stats-row" style="grid-template-columns:repeat(3,1fr);margin-top:.75rem">
+          <div class="stat-card" style="border-top-color:var(--maroon)">
+            <div class="stat-label">💰 Total Bank Balance</div>
+            <div class="stat-value" id="fin-bank-balance" style="font-size:1.3rem;color:var(--maroon)">—</div>
+            <div class="stat-meta">All funds in group accounts</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-label">👥 Member Balances</div>
+            <div class="stat-value" id="fin-member-balance" style="font-size:1.3rem">—</div>
+            <div class="stat-meta">Sum of all member savings + shares</div>
+          </div>
+          <div class="stat-card" id="fin-admin-card" style="border-top-color:var(--gold)">
+            <div class="stat-label">🏛 Admin / Group Balance</div>
+            <div class="stat-value" id="fin-admin-balance" style="font-size:1.3rem">—</div>
+            <div class="stat-meta" id="fin-admin-note">Bank minus member balances</div>
+          </div>
         </div>
         <div class="tabs" style="margin-top:.5rem">
           <div class="tab active" onclick="switchTab(this,'sub-tab-contributions')">Member Contributions</div>
@@ -1063,6 +1082,9 @@ tr:hover td{background:var(--maroon-pale)}
       </div>
       <div class="card">
         <div class="card-header"><div class="card-title">All Organisations</div><button class="card-action" onclick="showModal('addOrg')">+ Onboard Organisation</button></div>
+        <div style="padding:.75rem 1.25rem .25rem">
+          <input class="search-input form-input" id="sa-org-search" placeholder="🔍 Search organisations by name, reg number or code…" oninput="filterSAOrgs(this.value)" style="width:100%;max-width:500px"/>
+        </div>
         <div id="sa-org-list"><div class="loading"><div class="spinner"></div>Loading…</div></div>
       </div>
     </div>
@@ -1376,14 +1398,38 @@ tr:hover td{background:var(--maroon-pale)}
 
     <!-- MEMBER: MY CONTRIBUTIONS -->
     <div class="page" id="page-my_contributions">
-      <div class="section-header"><div><div class="section-title">My Contributions</div><div class="section-sub">Your payment history</div></div></div>
-      <div class="stats-row" style="grid-template-columns:repeat(3,1fr)">
+      <div class="section-header"><div><div class="section-title">My Contributions</div><div class="section-sub">Your payment history and balances</div></div></div>
+      <!-- Summary stats -->
+      <div class="stats-row" style="grid-template-columns:repeat(4,1fr)">
         <div class="stat-card"><div class="stat-label">Total Paid (All Time)</div><div class="stat-value" id="mc-total" style="font-size:1.3rem">—</div></div>
         <div class="stat-card gold"><div class="stat-label">This Year</div><div class="stat-value" id="mc-year" style="font-size:1.3rem">—</div></div>
-        <div class="stat-card green"><div class="stat-label">Payments Recorded</div><div class="stat-value" id="mc-count" style="font-size:1.3rem">—</div></div>
+        <div class="stat-card" style="border-top-color:var(--maroon)"><div class="stat-label">Shares Balance</div><div class="stat-value" id="mc-shares-bal" style="font-size:1.3rem;color:var(--maroon)">—</div></div>
+        <div class="stat-card green"><div class="stat-label">Savings Balance</div><div class="stat-value" id="mc-savings-bal" style="font-size:1.3rem">—</div></div>
       </div>
+      <!-- Mini bar chart of monthly payments -->
+      <div class="card" style="margin-bottom:1rem">
+        <div class="card-header"><div class="card-title">Monthly Payments — Last 6 Months</div></div>
+        <div style="padding:1rem 1.25rem">
+          <div id="mc-chart" style="display:flex;align-items:flex-end;gap:.5rem;height:100px;border-bottom:2px solid var(--border)">
+            <div style="color:var(--ink-faint);font-size:.75rem;padding:.5rem">Loading chart…</div>
+          </div>
+          <div id="mc-chart-labels" style="display:flex;gap:.5rem;margin-top:.35rem;font-size:.65rem;color:var(--ink-faint)"></div>
+        </div>
+      </div>
+      <!-- Contribution by category -->
+      <div class="grid-2" style="margin-bottom:1rem">
+        <div class="card">
+          <div class="card-header"><div class="card-title">By Category</div></div>
+          <div id="mc-by-category" style="padding:.75rem 1.25rem"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Quick Info</div></div>
+          <div id="mc-quick-info" style="padding:.75rem 1.25rem"></div>
+        </div>
+      </div>
+      <!-- Full payment history table -->
       <div class="table-wrap card">
-        <div class="card-header"><div class="card-title">Payment History</div></div>
+        <div class="card-header"><div class="card-title">Full Payment History</div><div class="card-sub" id="mc-count-label"></div></div>
         <table>
           <thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>M-Pesa Ref</th><th>Notes</th></tr></thead>
           <tbody id="mc-table"><tr><td colspan="5"><div class="loading"><div class="spinner"></div>Loading…</div></td></tr></tbody>
@@ -2930,7 +2976,15 @@ function renderMemberGrid(list) {
 }
 
 function filterMembers(q) {
-  const f = allMembers.filter(m => m.full_name.toLowerCase().includes(q.toLowerCase()) || (m.phone||'').includes(q));
+  if (!q) { renderMemberGrid(allMembers); return; }
+  const ql = q.toLowerCase();
+  const f = allMembers.filter(m =>
+    (m.full_name||'').toLowerCase().includes(ql) ||
+    (m.phone||'').includes(q) ||
+    (m.email||'').toLowerCase().includes(ql) ||
+    (m.id_number||'').includes(q) ||
+    (m.member_number?.toString()||'').includes(q)
+  );
   renderMemberGrid(f);
 }
 
@@ -3030,6 +3084,30 @@ async function loadFinance() {
     netEl.style.color = net >= 0 ? 'var(--success)' : 'var(--danger)';
   }
 
+  // ── Balance breakdown: Bank / Member / Admin ──
+  // Member balances = sum of all members' shares + savings
+  const { data: memberBals } = await sb.from('members')
+    .select('shares_balance,savings_balance').eq('org_id', currentOrg.id);
+  const totalMemberBal = (memberBals||[]).reduce((s,m) => s + Number(m.shares_balance||0) + Number(m.savings_balance||0), 0);
+  // Bank balance from org record (manually set) or computed from net
+  const bankBalance = currentOrg?.bank_balance || net;
+  const adminBalance = bankBalance - totalMemberBal;
+  const bankEl = document.getElementById('fin-bank-balance');
+  const memberEl = document.getElementById('fin-member-balance');
+  const adminEl = document.getElementById('fin-admin-balance');
+  const adminCard = document.getElementById('fin-admin-card');
+  const adminNote = document.getElementById('fin-admin-note');
+  if (bankEl) bankEl.textContent = 'Ksh ' + Math.abs(bankBalance).toLocaleString();
+  if (memberEl) memberEl.textContent = 'Ksh ' + totalMemberBal.toLocaleString();
+  if (adminEl) {
+    adminEl.textContent = (adminBalance < 0 ? '-' : '') + 'Ksh ' + Math.abs(adminBalance).toLocaleString();
+    adminEl.style.color = adminBalance < 0 ? 'var(--danger)' : 'var(--success)';
+    if (adminCard) adminCard.style.borderTopColor = adminBalance < 0 ? 'var(--danger)' : 'var(--gold)';
+    if (adminNote) adminNote.textContent = adminBalance < 0
+      ? '⚠ Negative — member funds used for group expenses'
+      : 'Group-retained earnings above member balances';
+  }
+
   // Contributions table
   const txnEl = document.getElementById('txn-table');
   if (txnEl) txnEl.innerHTML = txns.length ? txns.map(t => `
@@ -3085,10 +3163,12 @@ async function saveTransaction() {
   if (!amount) { toast('Please enter an amount'); return; }
   const { error } = await sb.from('transactions').insert(payload);
   if (error) { toast('Error: ' + error.message); return; }
-  // Update member balance if member and type selected
+  // Update member balance if member and type selected — only for member_income types
   if (memberId && typeId) {
     const contribType = allContribTypes.find(t => t.id === typeId);
-    if (contribType) {
+    // is_member_income defaults to true if not set (legacy types)
+    const isMemberIncome = contribType?.is_member_income !== false;
+    if (contribType && isMemberIncome) {
       const { data: member } = await sb.from('members').select('shares_balance,savings_balance').eq('id', memberId).single();
       if (member) {
         const updates = {};
@@ -4238,17 +4318,24 @@ async function toggleOrgStatus(orgId, currentStatus) {
 }
 
 async function saveOrg() {
+  const plan = document.getElementById('ao-plan').value;
+  // 2-month free trial expiry for all new orgs
+  const trialExpiry = new Date();
+  trialExpiry.setMonth(trialExpiry.getMonth() + 2);
   const payload = {
     name: document.getElementById('ao-name').value.trim(),
     reg_number: document.getElementById('ao-reg').value.trim(),
     paybill: document.getElementById('ao-paybill').value.trim(),
-    plan: document.getElementById('ao-plan').value,
-    status: document.getElementById('ao-status').value
+    plan,
+    status: document.getElementById('ao-status').value,
+    subscription_status: 'trial',
+    subscription_expires: trialExpiry.toISOString().split('T')[0],
+    sms_bundle: { starter:50, basic:200, standard:500, pro:1000 }[plan] || 50
   };
   if (!payload.name) { toast('Please enter an organisation name'); return; }
   const { error } = await sb.from('organisations').insert(payload);
   if (error) { toast('Error: '+error.message); return; }
-  toast('Organisation onboarded successfully');
+  toast('✓ Organisation onboarded — 2-month free trial until ' + trialExpiry.toDateString());
   closeModal('addOrg');
   loadSuperAdmin();
 }
@@ -4311,6 +4398,24 @@ function renderSAMembers(list, orgMap) {
       <td>Ksh ${m.savings_tier?.toLocaleString()||'—'}/mo</td>
       <td><span class="badge ${m.status==='active'?'badge-green':m.status==='arrears'?'badge-warn':'badge-grey'}">${m.status}</span></td>
     </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--ink-faint)">No members found</td></tr>';
+}
+
+function filterSAOrgs(q) {
+  const rows = document.querySelectorAll('#sa-org-list .org-row');
+  const ql = q.toLowerCase();
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = (!q || text.includes(ql)) ? '' : 'none';
+  });
+}
+
+function filterSAOrgs(q) {
+  const rows = document.querySelectorAll('#sa-org-list .org-row');
+  const ql = q.toLowerCase();
+  rows.forEach(row => {
+    const text = row.textContent.toLowerCase();
+    row.style.display = (!q || text.includes(ql)) ? '' : 'none';
+  });
 }
 
 function filterSAMembers(q) {
@@ -5149,56 +5254,109 @@ async function loadMyProfile() {
 async function loadMyContributions() {
   if (!currentOrg?.id || !currentProfile) return;
 
-  // Get member ID - use stored one or look it up
   let memberId = window._myMemberId;
+  if (!memberId) { await loadMyProfile(); memberId = window._myMemberId; }
   if (!memberId) {
-    await loadMyProfile(); // This sets window._myMemberId
-    memberId = window._myMemberId;
-  }
-
-  if (!memberId) {
-    document.getElementById('mc-table').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-faint)">No member record linked to your account. Contact your admin.</td></tr>';
+    document.getElementById('mc-table').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-faint)">No member record linked. Contact your admin.</td></tr>';
     return;
   }
 
-  // Fetch ONLY this member's transactions
-  const { data: txns } = await sb.from('transactions')
-    .select('*,contribution_types(name)')
-    .eq('member_id', memberId)
-    .order('transaction_date', {ascending: false});
-
-  // Also fetch adjustments
-  const { data: adjs } = await sb.from('balance_adjustments')
-    .select('*').eq('member_id', memberId).order('created_at',{ascending:false});
+  const [txnRes, adjRes, memRes] = await Promise.all([
+    sb.from('transactions').select('*,contribution_types(name,is_member_income)').eq('member_id', memberId).order('transaction_date',{ascending:false}),
+    sb.from('balance_adjustments').select('*').eq('member_id', memberId).order('created_at',{ascending:false}).catch(()=>({data:[]})),
+    sb.from('members').select('shares_balance,savings_balance,status,member_number,full_name,join_date').eq('id', memberId).single()
+  ]);
+  const txns = txnRes.data || [];
+  const adjs = adjRes.data || [];
+  const mem = memRes.data;
 
   const thisYear = new Date().getFullYear().toString();
-  const total = (txns||[]).reduce((s,t)=>s+Number(t.amount||0),0);
-  const yearTotal = (txns||[]).filter(t=>(t.transaction_date||t.created_at||'').startsWith(thisYear))
-    .reduce((s,t)=>s+Number(t.amount||0),0);
+  const total = txns.reduce((s,t)=>s+Number(t.amount||0),0);
+  const yearTotal = txns.filter(t=>(t.transaction_date||t.created_at||'').startsWith(thisYear)).reduce((s,t)=>s+Number(t.amount||0),0);
 
-  document.getElementById('mc-total').textContent = 'Ksh ' + total.toLocaleString();
-  document.getElementById('mc-year').textContent = 'Ksh ' + yearTotal.toLocaleString();
-  document.getElementById('mc-count').textContent = (txns||[]).length;
+  // Stats
+  const setEl = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  setEl('mc-total', 'Ksh ' + total.toLocaleString());
+  setEl('mc-year', 'Ksh ' + yearTotal.toLocaleString());
+  const countLabel = document.getElementById('mc-count-label');
+  if (countLabel) countLabel.textContent = txns.length + ' payments recorded';
+  if (mem) {
+    setEl('mc-shares-bal', 'Ksh ' + Number(mem.shares_balance||0).toLocaleString());
+    setEl('mc-savings-bal', 'Ksh ' + Number(mem.savings_balance||0).toLocaleString());
+  }
 
+  // ── Mini bar chart: last 6 months ──
+  const chartEl = document.getElementById('mc-chart');
+  const labelsEl = document.getElementById('mc-chart-labels');
+  if (chartEl) {
+    const months = [];
+    for (let i=5; i>=0; i--) {
+      const d = new Date(); d.setMonth(d.getMonth()-i);
+      months.push({ key: d.toISOString().slice(0,7), label: d.toLocaleString('default',{month:'short'}) });
+    }
+    const monthTotals = months.map(m => ({
+      label: m.label,
+      total: txns.filter(t=>(t.transaction_date||t.created_at||'').startsWith(m.key)).reduce((s,t)=>s+Number(t.amount||0),0)
+    }));
+    const maxVal = Math.max(...monthTotals.map(m=>m.total), 1);
+    chartEl.innerHTML = monthTotals.map(m => {
+      const h = Math.round((m.total/maxVal)*85);
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:.25rem">
+        <div style="font-size:.6rem;color:var(--ink-faint)">${m.total>0?'Ksh '+m.total.toLocaleString():''}</div>
+        <div style="width:100%;background:${m.total>0?'var(--maroon)':'var(--border)'};height:${h||3}px;border-radius:2px 2px 0 0;min-height:3px"></div>
+      </div>`;
+    }).join('');
+    if (labelsEl) labelsEl.innerHTML = monthTotals.map(m=>`<div style="flex:1;text-align:center">${m.label}</div>`).join('');
+  }
+
+  // ── By category ──
+  const catEl = document.getElementById('mc-by-category');
+  if (catEl) {
+    const cats = {};
+    txns.forEach(t => { const c=t.contribution_types?.name||'Other'; cats[c]=(cats[c]||0)+Number(t.amount||0); });
+    const entries = Object.entries(cats).sort((a,b)=>b[1]-a[1]);
+    catEl.innerHTML = entries.length ? entries.map(([cat,amt])=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:.8rem;color:var(--ink-soft)">${cat}</span>
+        <strong style="font-size:.82rem;color:var(--maroon)">Ksh ${amt.toLocaleString()}</strong>
+      </div>`).join('') : '<div style="color:var(--ink-faint);font-size:.8rem;padding:.5rem 0">No payments yet</div>';
+  }
+
+  // ── Quick info ──
+  const infoEl = document.getElementById('mc-quick-info');
+  if (infoEl && mem) {
+    const joinDate = mem.join_date ? new Date(mem.join_date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '—';
+    const lastTxn = txns[0];
+    const lastDate = lastTxn ? (lastTxn.transaction_date||lastTxn.created_at?.split('T')[0]) : null;
+    infoEl.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:.6rem;font-size:.82rem">
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-faint)">Member #</span><strong>#${mem.member_number||'—'}</strong></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-faint)">Status</span><span class="badge ${mem.status==='active'?'badge-green':mem.status==='arrears'?'badge-warn':'badge-grey'}">${mem.status||'—'}</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-faint)">Joined</span><strong>${joinDate}</strong></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-faint)">Last Payment</span><strong>${lastDate||'None yet'}</strong></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--ink-faint)">Total Balance</span><strong style="color:var(--maroon)">Ksh ${(Number(mem.shares_balance||0)+Number(mem.savings_balance||0)).toLocaleString()}</strong></div>
+      </div>`;
+  }
+
+  // ── Full table ──
   const rows = [
-    ...(txns||[]).map(t => `<tr>
+    ...txns.map(t => `<tr>
       <td>${t.transaction_date||t.created_at?.split('T')[0]||'—'}</td>
       <td><span class="badge badge-green">${t.contribution_types?.name||'Payment'}</span></td>
       <td><strong style="color:var(--success)">+Ksh ${Number(t.amount).toLocaleString()}</strong></td>
-      <td style="font-family:monospace;font-size:.75rem">${t.mpesa_ref||'—'}</td>
-      <td>${t.notes||'—'}</td>
+      <td style="font-family:monospace;font-size:.72rem">${t.mpesa_ref||'—'}</td>
+      <td style="font-size:.78rem">${t.notes||'—'}</td>
     </tr>`),
-    ...(adjs||[]).map(a => `<tr>
+    ...adjs.map(a => `<tr>
       <td>${a.created_at?.split('T')[0]||'—'}</td>
-      <td><span class="badge ${a.direction==='credit'?'badge-maroon':'badge-warn'}">${a.direction==='credit'?'Credit':'Debit'} — ${a.adjustment_type}</span></td>
+      <td><span class="badge ${a.direction==='credit'?'badge-maroon':'badge-warn'}">${a.direction==='credit'?'Credit Adj':'Debit Adj'}</span></td>
       <td><strong style="color:${a.direction==='credit'?'var(--success)':'var(--danger)'}">${a.direction==='credit'?'+':'-'}Ksh ${Number(a.amount).toLocaleString()}</strong></td>
       <td>—</td>
-      <td>${a.reason||'—'}</td>
+      <td style="font-size:.78rem">${a.reason||'—'}</td>
     </tr>`)
   ];
-
   document.getElementById('mc-table').innerHTML = rows.length ? rows.join('') :
-    '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-faint)">No contributions recorded yet. Payments will appear here once your admin records them.</td></tr>';
+    '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--ink-faint)">No payments yet. They will appear here once your admin records them.</td></tr>';
 }
 
 // ── HANDLE PASSWORD RESET ──
@@ -5833,18 +5991,39 @@ async function checkSubscriptionAccess() {
     const isExpiringSoon = daysLeft !== null && daysLeft <= 14 && daysLeft > 0;
 
     if (isExpired) {
-      const banner = document.createElement('div');
-      banner.id = 'sub-warning-banner';
-      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:var(--danger);color:#fff;padding:.65rem 1.5rem;z-index:999;display:flex;align-items:center;justify-content:space-between;font-family:Inter,sans-serif';
-      banner.innerHTML = `
-        <div style="display:flex;align-items:center;gap:.75rem">
-          <span style="font-size:1.1rem">🔒</span>
-          <span style="font-size:.82rem;font-weight:600">Subscription expired on ${expDate.toDateString()}. Please renew to continue full access.</span>
-        </div>
-        <button onclick="showPage('billing')" style="background:#fff;color:var(--danger);border:none;padding:.3rem .9rem;font-size:.75rem;font-weight:700;cursor:pointer;border-radius:2px">Renew Now →</button>`;
-      document.body.prepend(banner);
-      // Adjust main content
-      document.querySelector('.main').style.paddingTop = '42px';
+      // Admins see a banner; members see a full lock screen
+      if (currentProfile?.role === 'member') {
+        // Show lock overlay for members
+        let lock = document.getElementById('sub-lock-overlay');
+        if (!lock) {
+          lock = document.createElement('div');
+          lock.id = 'sub-lock-overlay';
+          lock.style.cssText = 'position:fixed;inset:0;background:rgba(90,0,22,.97);z-index:9998;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:Inter,sans-serif;color:#fff;text-align:center;padding:2rem';
+          lock.innerHTML = `
+            <div style="font-size:3rem;margin-bottom:1rem">🔒</div>
+            <div style="font-size:1.3rem;font-weight:700;margin-bottom:.5rem">${org.name}</div>
+            <div style="font-size:.95rem;opacity:.85;margin-bottom:1.5rem">Your group's subscription expired on<br><strong>${expDate.toDateString()}</strong></div>
+            <div style="font-size:.82rem;opacity:.7;max-width:340px;line-height:1.7">Please ask your group admin to renew the GroupYetu360 subscription to restore access.</div>
+            <div style="margin-top:2rem;display:flex;gap:1rem;flex-wrap:wrap;justify-content:center">
+              <a href="https://wa.me/254792385970" target="_blank" style="background:#25D366;color:#fff;padding:.6rem 1.25rem;border-radius:2rem;font-size:.82rem;font-weight:600;text-decoration:none">💬 WhatsApp Support</a>
+              <a href="mailto:support@groupyetu.org" style="background:rgba(255,255,255,.15);color:#fff;padding:.6rem 1.25rem;border-radius:2rem;font-size:.82rem;font-weight:600;text-decoration:none">✉ Email Support</a>
+            </div>`;
+          document.body.appendChild(lock);
+        }
+      } else {
+        // Admin gets a red banner
+        const banner = document.createElement('div');
+        banner.id = 'sub-warning-banner';
+        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:var(--danger);color:#fff;padding:.65rem 1.5rem;z-index:999;display:flex;align-items:center;justify-content:space-between;font-family:Inter,sans-serif';
+        banner.innerHTML = `
+          <div style="display:flex;align-items:center;gap:.75rem">
+            <span style="font-size:1.1rem">🔒</span>
+            <span style="font-size:.82rem;font-weight:600">Subscription expired on ${expDate.toDateString()}. Members have restricted access. Please renew.</span>
+          </div>
+          <button onclick="showPage('billing')" style="background:#fff;color:var(--danger);border:none;padding:.3rem .9rem;font-size:.75rem;font-weight:700;cursor:pointer;border-radius:2px">Renew Now →</button>`;
+        document.body.prepend(banner);
+        document.querySelector('.main').style.paddingTop = '42px';
+      }
     } else if (isExpiringSoon) {
       const banner = document.createElement('div');
       banner.id = 'sub-warning-banner';
